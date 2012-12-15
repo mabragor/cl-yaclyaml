@@ -46,12 +46,78 @@
  #?" 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty '" nil
  #?" 1st non-empty\n2nd non-empty 3rd non-empty ")
 
-;;; Testing plain scalar reading
-(def-ts-macro test-plain-scalar-reader yaml-plain-scalar-reader (nil))
-(test-plain-scalar-reader
- #?" 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty : "
- #\:
- #?"1st non-empty\n2nd non-empty 3rd non-empty")
+
+(diag "Testing yaml-read-comment")
+;; We need to hack out a macro to help our testing
+(defmacro test-reader (fname (&rest string-components) prev-char
+                                string-read next-char)
+  (sb-int:with-unique-names (g!-value g!-next-char)
+    `(multiple-value-bind (,g!-value ,g!-next-char)
+         (,fname (make-string-input-stream (strcat ,@string-components))
+                 ,prev-char)
+       (if (not (ok (equal ,g!-value ,string-read)))
+           (format t "# String read incorrectly:~%# expected: ~s~%# found: ~s~%"
+                   ,string-read ,g!-value))
+       (if (not (ok (equal ,g!-next-char ,next-char)))
+           (format t (strcat "# Next char determined incorrectly:~%"
+                               "# expected: ~s~%"
+                               "# found: ~s~%")
+                   ,next-char ,g!-next-char)))))
+     
+(test-reader yaml-read-comment ("asdf" #\newline "a") #\# nil #\newline)
+(test-reader yaml-read-comment ("asdf" #\return "a") #\# nil #\newline)
+(test-reader yaml-read-comment ("asdf" #\return #\newline "a") #\# nil #\newline)
+
+(diag "Testing yaml-plain-scalar-reader")
+(test-reader yaml-plain-scalar-reader
+             (#?"st non-empty\n\n 2nd non-empty \n\t3rd non-empty : ")
+             '(#\1)
+             #?"1st non-empty\n2nd non-empty 3rd non-empty"
+             #\:)
+(test-reader yaml-plain-scalar-reader
+             (#?"vector\n- \":")
+             '(#\: #\:)
+             #?"::vector"
+             #\-)
+(test-reader yaml-plain-scalar-reader
+             (#?"p, up, and away!")
+             '(#\U)
+             #?"Up, up, and away!"
+             nil)
+(test-reader yaml-plain-scalar-reader
+             (#?"23 # tra-la-la")
+             '(#\- #\1)
+             #?"-123"
+             nil)
+(test-reader yaml-plain-scalar-reader
+             (#?"ttp://example.com/foo#bar\n# Inside flow collection:")
+             '(#\h)
+             #?"http://example.com/foo#bar"
+             nil)
+(let ((yaml-context 'flow-in))
+  (declare (special yaml-context))
+  (test-reader yaml-plain-scalar-reader
+               (#?"vector\n- \":")
+               '(#\: #\:)
+               #?"::vector"
+               #\-)
+  (test-reader yaml-plain-scalar-reader
+               (#?"p, up, and away!")
+               '(#\U)
+               #?"Up"
+               #\,)
+  (test-reader yaml-plain-scalar-reader
+               (#?"23 # tra-la-la")
+               '(#\- #\1)
+               #?"-123"
+               nil)
+  (test-reader yaml-plain-scalar-reader
+               (#?"ttp://example.com/foo#bar\n# Inside flow collection:")
+               '(#\h)
+               #?"http://example.com/foo#bar"
+               nil))
+
+
 
 ;;; Testing anchor and alias-node reader
 

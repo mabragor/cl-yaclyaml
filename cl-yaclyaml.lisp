@@ -147,54 +147,66 @@
 
 (defmacro def-yaml-scalar-reader (name args &body body)
   `(defun ,name ,args
-     (macrolet ((use-whitespace ()
-                  `(progn (nconcing (nreverse whitespace) into res)
+     (macrolet ((use-whitespace (&optional (res 'res))
+                  `(progn (nconcing (nreverse whitespace) into ,res)
                           (setf whitespace nil)))
                 (discard-whitespace ()
                   `(setf whitespace nil))
-                (fold-newlines ()
+                (fold-newlines (&optional (res 'res))
                   `(progn
                      (cond ((equal new-line-count 0) nil)
                            ((equal new-line-count 1)
-                            (collect #\space into res))
-                           (t (collect (make-string (- new-line-count 1)
+                            (iml-collect #\space into ,res))
+                           (t (iml-collect (make-string (- new-line-count 1)
                                                     :initial-element #\newline)
-                                into res)))
+                                into ,res)))
                      (setf new-line-count 0)))
-                (b-break-p (char)
+                (b-break-p (char &optional (char1 char))
+                  ;; Creepy code to ensure that all acceptable b-break char
+                  ;; sequences are read as #\newline character.
                   `(or (char= ,char #\newline)
                        (and (char= ,char #\return)
                             (if (char= (peek-char nil stream nil t t) #\newline)
-                                (next ,char))))))
-       (macrolet ((process-nws-char (&key discard-leading-whitespace)
+                                       (next ,char1)
+                                       (setf ,char1 #\newline))))))
+       (macrolet ((process-nws-char (&key (char 'char) (res 'res)
+                                          discard-leading-whitespace)
                     `(if begin-of-first-line-p
                          (progn ,(if discard-leading-whitespace
                                      `(discard-whitespace)
-                                     `(use-whitespace))
-                                (collect char into res)
+                                     `(use-whitespace ,res))
+                                (iml-collect ,char into ,res)
                                 (setf begin-of-first-line-p nil))
                          (if begin-of-line-p
                              (progn (discard-whitespace)
-                                    (fold-newlines)
-                                    (collect char into res)
+                                    (fold-newlines ,res)
+                                    (iml-collect ,char into ,res)
                                     (setf begin-of-line-p nil))
-                             (progn (use-whitespace)
-                                    (collect char into res)))))
+                             (progn (use-whitespace ,res)
+                                    (iml-collect ,char into ,res)))))
                   (process-b-break-char ()
-                    `(progn (discard-whitespace)
-                            (incf new-line-count)
-                            (setf begin-of-first-line-p nil
-                                  begin-of-line-p t))))
+                    `(if (find yaml-context '(flow-key block-key))
+                         (error "Implicit key should be single lined.")
+                         (progn (discard-whitespace)
+                                (incf new-line-count)
+                                (setf begin-of-first-line-p nil
+                                      begin-of-line-p t)))))
          (flet ((whitespace-p (char) (or (char= char #\space)
                                          (char= char #\tab))))
            (let (whitespace
                  (begin-of-first-line-p t)
                  (begin-of-line-p t)
                  (new-line-count 0))
-             (iter (generate char in-non-closing-stream stream using #'read-char)
-                   (next char)
-                   ;;(format t "~a~%" char)
-                   ,@body)))))))
+             (macrolet ((iter-main-loop (&body body)
+                          `(iter main-loop
+                                 (generate char in-non-closing-stream
+                                           stream using #'read-char)
+                                 (next char)
+                                 ;;(format t "~`a~%" char)
+                                 ,@body))
+                        (iml-collect (&rest args)
+                          `(in main-loop (collect ,@args))))
+               ,@body)))))))
 
 ;; First we define assoc-list of escapes ...
 (let ((escapes
@@ -223,46 +235,48 @@
     (assoc char escapes))
   ;; ... and then function, which reads double quoted scalars
   (def-yaml-scalar-reader yaml-double-quote-reader (stream double-quote-char)
-      (until (char= char double-quote-char))
-    (cond
-      ((whitespace-p char) (push char whitespace))
-      ((char= char #\\)
-       (if (char= (next char) #\newline)
-           (progn (use-whitespace)
-                  (setf begin-of-first-line-p nil
-                        begin-of-line-p t))
-           (let ((esc (assoc char escapes :test #'char=)))
-             (if (not esc)
-                 (error "Invalid escape character: ~s ~s"
-                        char
-                        (char-code char))
-                 (let ((char (apif #'characterp (cdr esc)
-                                   it
-                                   (funcall it stream))))
-                   (process-nws-char))))))
-      ((b-break-p char) (process-b-break-char))
-      (t (process-nws-char)))
-    (finally
-     (return (values (apply #'strcat (if begin-of-line-p
-                                         res
-                                         (nconc res whitespace)))
-                     nil)))))
+    (iter-main-loop
+     (until (char= char double-quote-char))
+     (cond
+       ((whitespace-p char) (push char whitespace))
+       ((char= char #\\)
+        (if (char= (next char) #\newline)
+            (progn (use-whitespace)
+                   (setf begin-of-first-line-p nil
+                         begin-of-line-p t))
+            (let ((esc (assoc char escapes :test #'char=)))
+              (if (not esc)
+                  (error "Invalid escape character: ~s ~s"
+                         char
+                         (char-code char))
+                  (let ((char (apif #'characterp (cdr esc)
+                                    it
+                                    (funcall it stream))))
+                    (process-nws-char))))))
+       ((b-break-p char) (process-b-break-char))
+       (t (process-nws-char)))
+     (finally
+      (return-from main-loop (values (apply #'strcat (if begin-of-line-p
+                                                         res
+                                                         (nconc res whitespace)))
+                                     nil))))))
         
 (def-yaml-scalar-reader yaml-single-quote-reader (stream single-quote-char)
-  (cond
-    ((char= char single-quote-char)
-     (if (char= (next char) single-quote-char)
-         (collect char into res)
-         (finish)))
-    ((whitespace-p char) (push char whitespace))
-    ((b-break-p char) (process-b-break-char))
-    (t (process-nws-char)))
-  (finally
-   ;;(fart "Farting:" char (char-code char))
-   (return (values (apply #'strcat (if begin-of-line-p
-                                       res
-                                       (nconc res whitespace)))
-                   (if (characterp char) char nil)))))
+  (iter-main-loop
+   (cond
+     ((char= char single-quote-char)
+      (if (char= (next char) single-quote-char)
+          (iml-collect char into res)
+          (finish)))
+     ((whitespace-p char) (push char whitespace))
+     ((b-break-p char) (process-b-break-char))
+     (t (process-nws-char)))
+   (finally
+    ;;(fart "Farting:" char (char-code char))
+    (return-from main-loop (values (apply #'strcat (if begin-of-line-p
+                                                       res
+                                                       (nconc res whitespace)))
+                                   (if (characterp char) char nil))))))
 
 
 
@@ -308,37 +322,59 @@
 (defparameter yaml-context 'flow-out)
 
 (def-yaml-scalar-reader yaml-read-comment (stream prev-char)
-  (fart "Comment:" char)
-  (if (b-break-p char) (finish))
-  (finally (return (values nil nil))))
+  ;; (fart "Comment:" char)
+  (iter-main-loop
+   (if (b-break-p char) (finish))
+   (finally (return-from main-loop (values nil (if (characterp char) char nil))))))
 
 (def-yaml-scalar-reader yaml-plain-scalar-reader (stream already-read-chars)
-  (fart char)
-  (cond
-    ((whitespace-p char) (push char whitespace))
-    ((b-break-p char) (process-b-break-char))
-    ((char= char #\:) (if (whitespace-p (next char))
-                          ;; KLUDGE - whitespace will be disregarded anyway
-                          (progn (setf char #\:)
-                                 (finish))
-                          (progn (collect #\: into res)
-                                 (collect char into res))))
-    ((char= char #\#) (if whitespace
-                          ;; Maybe we should retain comments in serialization
-                          ;; tree?
-                          (yaml-read-comment stream #\#)
-                          (collect char into res)))
-    ((find char '(#\, #\[ #\] #\{ #\}) :test #'char=)
-     (if (find yaml-context '(flow-in flow-key))
-         (finish)
-         (collect char into res)))
-    (t (process-nws-char :discard-leading-whitespace t)))
-  (finally (return (values (apply #'strcat res)
-                           (if (characterp char) char nil)))))
+  ;; (fart char)
+  ;; First we need to do iteration among already-read-chars
+  (iter-main-loop
+   (if-first-time
+    ;; Whitespace characters and newlines cannot trigger
+    ;; plain scalar filling, so ALREADY-READ-CHARS are necessary NWS-CHARS
+    ;; So the folliwing hopefully words correctly.
+    (dolist (char already-read-chars)
+      (process-nws-char)))
+   (cond
+     ((whitespace-p char) (push char whitespace))
+     ((b-break-p char) (process-b-break-char))
+     ((char= char #\:) (if (whitespace-p (peek-char nil stream t t))
+                           (finish)
+                           (progn (process-nws-char)
+                                  (next char)
+                                  (process-nws-char))))
+     ((char= char #\-) (if (and (or whitespace begin-of-line-p)
+                                (whitespace-p (peek-char nil stream t t)))
+                           (finish)
+                           (progn (process-nws-char)
+                                  (next char)
+                                  (process-nws-char))))
+     ((char= char #\#) (if (or whitespace begin-of-line-p)
+                            ;; Maybe we should retain comments in
+                            ;; serialization tree?
+                            (multiple-value-bind (str char1)
+                                (yaml-read-comment stream #\#)
+                              (declare (ignore str))
+                              ;; Comment should end only with
+                              ;; line-break or EOF
+                              (if (and char1
+                                       (b-break-p char1 char))
+                                  (process-b-break-char)))
+                            (iml-collect char into res)))
+     ((find char '(#\, #\[ #\] #\{ #\}) :test #'char=)
+      (if (find yaml-context '(flow-in flow-key))
+          (finish)
+          (process-nws-char)))
+     (t (process-nws-char :discard-leading-whitespace t)))
+   (finally (return-from main-loop (values (apply #'strcat res)
+                                           (if (characterp char) char nil))))))
     
 
 
-
+;;; So far so good.
+;;; Up to uncertainty with '-, we've covered all scalar styles.
         
 
 ;(defun yaml-reader (stream)
