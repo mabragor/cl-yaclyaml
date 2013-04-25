@@ -98,7 +98,7 @@
 (define-rule ns-char (and (! s-white) nb-char)
   (:lambda (x) (cadr x)))
 
-(define-rule ns-dec-digit (or #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9))
+(define-rule ns-dec-digit (character-ranges (#\0 #\9)))
 
 (define-rule ns-hex-digit (or ns-dec-digit (~ #\a) (~ #\b) (~ #\c) (~ #\d) (~ #\e) (~ #\f)))
 
@@ -192,7 +192,6 @@
 (defun indent-=n-p (elt)
   (= elt n))
 
- 
 (define-rule s-indent-<n (indent-<n-p s-indent))
 (define-rule s-indent-<=n (indent-<=n-p s-indent))
 (define-rule s-indent-=n (indent-=n-p s-indent))
@@ -390,12 +389,12 @@
 				   l-empty s-flow-line-prefix))
 (define-rule s-double-break (or s-double-escaped s-flow-folded))
 (define-rule nb-ns-double-in-line (* (and (* s-white) ns-double-char)))
-(define-rule s-double-next-line (and s-double-break
-				     (? (and ns-double-char
-					     nb-ns-double-in-line
-					     (or s-double-next-line (* s-white)))))
-  (:destructure (bbreak lst)
-		(if 
+;; (define-rule s-double-next-line (and s-double-break
+;; 				     (? (and ns-double-char
+;; 					     nb-ns-double-in-line
+;; 					     (or s-double-next-line (* s-white)))))
+;;   (:destructure (bbreak lst)
+;; 		(if 
 (define-rule nb-double-multi-line (and nb-ns-double-in-line
 				       (or s-double-next-line (* s-white)))
   (:destructure (first-line rest-lines)
@@ -437,3 +436,71 @@
 (define-rule nb-single-multi-line (and nb-ns-single-in-line
 				       (or s-single-next-line
 					   (* s-white))))
+
+;; Block scalars
+
+(define-rule c-b-block-header (and (or (and c-indentation-indicator-ne c-chomping-indicator)
+				       (and c-chomping-indicator-ne c-indentation-indicator)
+				       (and c-chomping-indicator c-indentation-indicator))
+				   s-b-comment)
+  (:destructure (content comment)
+		(declare (ignore comment))
+		content))
+
+(define-rule c-indentation-indicator-ne ns-dec-digit
+  (:lambda (x)
+    `(:block-indentation-indicator . ,(string x))))
+(define-rule c-indentation-indicator (or ns-dec-digit "")
+  (:lambda (x)
+    `(:block-indentation-indicator . ,(string x))))
+(define-rule c-chomping-indicator-ne (or #\- #\+)
+  (:lambda (x)
+    `(:block-chomping-indicator . ,(string x))))
+(define-rule c-chomping-indicator (or #\- #\+ "")
+  (:lambda (x)
+    `(:block-chomping-indicator . ,(string x))))
+
+(defun hash->assoc (hash)
+  (iter (for (key val) in-hashtable hash)
+	(collect `(,key . ,val))))
+
+
+(defmacro define-context-rules (context-var &rest contexts)
+  `(progn (defparameter ,context-var ,(sb-int:keywordicate (car contexts)))
+	  ,@(mapcar (lambda (context-name)
+		      `(progn
+			 (defun ,(sb-int:symbolicate context-name "-CONTEXT-P") (x)
+			   (declare (ignore x))
+			   (eql ,context-var ,(sb-int:keywordicate context-name)))
+			 (define-rule ,(sb-int:symbolicate context-name "-CONTEXT")
+			     (,(sb-int:symbolicate context-name "-CONTEXT-P") "")
+			   (:constant nil))))
+		    contexts)))
+
+(define-context-rules block-scalar-chomping
+   clip keep strip)
+
+(define-rule b-chomped-last b-break
+  (:lambda (x)
+    (declare (ignore x))
+    (case block-scalar-chomping
+      (:clip #\newline)
+      (:keep #\newline)
+      (:strip nil))))
+
+(define-rule b-non-content b-break
+  (:constant nil))
+
+(define-rule l-chomped-empty (or (and strip-context l-strip-empty)
+				 (and clip-context l-strip-empty)
+				 (and keep-context l-keep-empty)))
+(define-rule l-strip-empty (and (* (and s-indent-<=n b-non-content))
+				(? l-trail-comments)))
+(define-rule l-keep-empty (and (* l-empty)
+			       l-trail-comments))
+
+(define-rule l-trail-comments (and s-indent-<n c-nb-comment-text b-comment
+				   (* l-comment)))
+
+;; (define-rule c-l+literal (wrap (and  "|" c-b-block-header)
+;; 			       l-literal-content))

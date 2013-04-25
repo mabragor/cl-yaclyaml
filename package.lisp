@@ -8,4 +8,5 @@
   (:use #:cl #:iterate #:rutils.string #:esrap-parser-basics #:esrap)
   (:shadowing-import-from #:cl-test-more
                           :ok :plan :finalize :is :isnt :is-expand :diag)
-  (:shadowing-import-from #:alexandria #:flatten))
+  (:shadowing-import-from #:alexandria #:flatten)
+  (:export #:yaclyaml-parse))
