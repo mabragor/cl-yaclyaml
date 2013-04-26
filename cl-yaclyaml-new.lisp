@@ -6,9 +6,6 @@
 
 (define-esrap-env yaclyaml)
 
-(defmacro define-rule (symbol expression &body options)
-  `(defrule ,symbol ,expression ,@options))
-
 ;;; Indicator characters
 
 (defmacro define-alias-rules (clauses)
@@ -23,6 +20,22 @@
 
 (define-rule goo "foo"
   (:constant "foo"))
+
+(defmacro define-context-rules (context-var &rest contexts)
+  "Define rules, that consume nothing, but pass only if CONTEXT-VAR is equal to
+something particular.
+For cases, when you do not want to keep a bunch of sub-rules with different :WHEN's around."
+  `(progn (defparameter ,context-var ,(sb-int:keywordicate (car contexts)))
+	  ,@(mapcar (lambda (context-name)
+		      `(progn
+			 (defun ,(sb-int:symbolicate context-name "-CONTEXT-P") (x)
+			   (declare (ignore x))
+			   (eql ,context-var ,(sb-int:keywordicate context-name)))
+			 (define-rule ,(sb-int:symbolicate context-name "-CONTEXT")
+			     (,(sb-int:symbolicate context-name "-CONTEXT-P") "")
+			   (:constant nil))))
+		    contexts)))
+
 
 (define-alias-rules (;; block structure indicators
 		     (c-sequence-entry #\-)
@@ -178,52 +191,28 @@
 
 ;; Indentation
 
-(define-rule s-indent (* s-space)
-  (:lambda (lst)
-    (length lst)))
+(define-context-rules n autodetect)
+(define-context-rules c block-out block-in flow-out flow-in)
 
-(defparameter n -1 "Current indentation")
-(defparameter c :block-out "Context")
-
-(defun indent-<n-p (elt)
-  (< elt n))
-(defun indent-<=n-p (elt)
-  (<= elt n))
-(defun indent-=n-p (elt)
-  (= elt n))
-
-(define-rule s-indent-<n (indent-<n-p s-indent))
-(define-rule s-indent-<=n (indent-<=n-p s-indent))
-(define-rule s-indent-=n (indent-=n-p s-indent))
-;; TODO should somehow implement s-indent-<n and s-indent-<=n
+(define-rule s-indent-<n (cond (autodetect-context (* s-space))
+			       (t (* (- n 1) s-space)))
+  (:lambda (x) (length x)))
+(define-rule s-indent-<=n (cond (autodetect-context (* s-space))
+				(t (* n s-space)))
+  (:lambda (x) (length x)))
+(define-rule s-indent-=n (cond (autodetect-context (* s-space))
+			       (t (* n n s-space)))
+  (:lambda (x) (length x)))
 
 (define-rule s-separate-in-line (+ s-white) ; TODO or /* Start line */
   (:constant " "))
 
-(define-rule s-block-line-prefix s-indent-=n
-  ;; Is this right?
-  (:constant ""))
-;; Slightly non-right, but it is trimmed anyways, as I reckon.
-(define-rule s-flow-line-prefix (and (? s-separate-in-line))
-  (:constant ""))
+(define-rule s-block-line-prefix s-indent-=n)
+(define-rule s-flow-line-prefix (and s-indent-=n (? s-separate-in-line)))
+(define-rule s-line-prefix (cond ((or block-out-context block-in-context) s-block-line-prefix)
+				 ((or flow-out-context flow-in-context) s-flow-line-prefix)))
 
-(define-rule s-block-in-line-prefix s-block-line-prefix
-  (:when (eql c :block-in)))
-(define-rule s-block-out-line-prefix s-block-line-prefix
-  (:when (eql c :block-out)))
-(define-rule s-flow-in-line-prefix s-flow-line-prefix
-  (:when (eql c :flow-in)))
-(define-rule s-flow-out-line-prefix s-flow-line-prefix
-  (:when (eql c :flow-out)))
-
-(define-rule s-line-prefix (or s-block-in-line-prefix
-			       s-block-out-line-prefix
-			       s-flow-in-line-prefix
-			       s-flow-out-line-prefix))
-
-(define-rule l-empty (and (or s-line-prefix
-			      s-indent-<n) b-break)
-  (:text t))
+(define-rule l-empty (cond ((or s-line-prefix s-indent-<n) b-break)))
 
 (define-rule b-l-trimmed (and b-break (+ l-empty))
   (:destructure (bb lst)
@@ -464,19 +453,6 @@
   (iter (for (key val) in-hashtable hash)
 	(collect `(,key . ,val))))
 
-
-(defmacro define-context-rules (context-var &rest contexts)
-  `(progn (defparameter ,context-var ,(sb-int:keywordicate (car contexts)))
-	  ,@(mapcar (lambda (context-name)
-		      `(progn
-			 (defun ,(sb-int:symbolicate context-name "-CONTEXT-P") (x)
-			   (declare (ignore x))
-			   (eql ,context-var ,(sb-int:keywordicate context-name)))
-			 (define-rule ,(sb-int:symbolicate context-name "-CONTEXT")
-			     (,(sb-int:symbolicate context-name "-CONTEXT-P") "")
-			   (:constant nil))))
-		    contexts)))
-
 (define-context-rules block-scalar-chomping
    clip keep strip)
 
@@ -490,33 +466,83 @@
 
 (define-rule b-non-content b-break
   (:constant nil))
+(define-rule b-as-line-feed b-break)
 
-(define-rule l-chomped-empty (or (and strip-context l-strip-empty)
-				 (and clip-context l-strip-empty)
-				 (and keep-context l-keep-empty)))
+(define-rule l-chomped-empty (cond ((or strip-context clip-context) l-strip-empty)
+				   (keep-context l-keep-empty)))
 (define-rule l-strip-empty (and (* (and s-indent-<=n b-non-content))
-				(? l-trail-comments)))
+				(? l-trail-comments))
+  (:constant ""))
 (define-rule l-keep-empty (and (* l-empty)
-			       l-trail-comments))
+			       (? l-trail-comments)))
 
 (define-rule l-trail-comments (and s-indent-<n c-nb-comment-text b-comment
-				   (* l-comment)))
+				   (* l-comment))
+  (:constant ""))
 
+(define-rule l-literal-content (and (? (and l-nb-literal-text
+					    (* b-nb-literal-next)
+					    b-chomped-last))
+				    l-chomped-empty)
+  (:text t))
 
-(let ((chomping-map '(("+" . :keep) ("-" . :strip) ("" . :clip))))
-  (define-rule c-l+literal (wrap (and  "|" c-b-block-header)
-				 l-literal-content)
-  (:wrap-around 
-   (let ((block-scalar-chomping (cdr (assoc (cdr (assoc :block-chomping-indicator (cadr wrapper)))
-					    chomping-map :test #'equal)))
-	 (n ...)) ; somehow we should implement indentation detection from first non-empty line.
-     (call-parser)))))
+(define-context-rules block-scalar-style literal folded)
 
+(let ((chomping-map '(("+" . :keep) ("-" . :strip) ("" . :clip)))
+      (style-map '(("|" . :literal) (">" . :folded))))
+  (define-rule c-l-block-scalar (wrap (and (or "|" ">") c-b-block-header)
+				      block-scalar-content)
+
+    (:wrap-around 
+     (let ((block-scalar-chomping (cdr (assoc (cdr (assoc :block-chomping-indicator
+							  (cadr wrapper)))
+					      chomping-map :test #'equal)))
+	   (block-scalar-style (cdr (assoc (car wrapper) style-map :test #'equal)))
+	   ;; FIXME: implement auto-detection of indentation
+	   (n (let ((it (cdr (assoc :block-indentation-indicator
+				    (cadr wrapper)))))
+		(if (not (equal it ""))
+		    (parse-integer it)
+		    :autodetect)))
+	   (c :block-in))
+       (call-parser)))
+    (:text t)))
+
+(define-rule block-scalar-content (wrap (cond (autodetect-context detect-indent)
+					      (t ""))
+					(cond (literal-context l-literal-content)
+					      (folded-context l-folded-content)))
+  (:wrap-around
+   (if (equal wrapper "")
+       (call-parser)
+       (let ((n wrapper))
+	 (call-parser)))))
+
+(define-rule detect-indent (& (and (* l-empty) s-indent-=n nb-char))
+  (:destructure (empties indent char)
+		(declare (ignore empties char))
+		indent))
 
 (define-rule l-nb-literal-text (and (* l-empty)
+				    (cond (s-indent-=n (+ nb-char)))))
 
-(define-rule l-literal
+(define-rule b-nb-literal-next (and b-as-line-feed l-nb-literal-text))
+				    
 
+(define-rule s-nb-folded-text (cond (s-indent-=n (and ns-char (* nb-char)))))
+(define-rule l-nb-folded-lines (and s-nb-folded-text
+				    (* (and b-l-folded s-nb-folded-text))))
+
+(define-rule s-nb-spaced-text (cond (s-indent-=n (and s-white (* nb-char)))))
+(define-rule b-l-spaced (and b-as-line-feed (* l-empty)))
+(define-rule l-nb-spaced-lines (and s-nb-spaced-text
+				    (* (and b-l-spaced s-nb-spaced-text))))
+(define-rule l-nb-same-lines (and (* l-empty)
+				  (or l-nb-folded-lines l-nb-spaced-lines)))
+(define-rule l-nb-diff-lines (and l-nb-same-lines
+				  (* (and b-as-line-feed l-nb-same-lines))))
+(define-rule l-folded-content (and (? (and l-nb-diff-lines b-chomped-last))
+				   l-chomped-empty))
 
 ;;; Plain scalars
 (define-rule ns-plain-first (or (and (! c-indicator) ns-char)

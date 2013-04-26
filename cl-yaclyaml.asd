@@ -12,7 +12,7 @@
   :author "Alexander Popolitov <popolit@itep.ru>"
   :license "GPL"
   :depends-on (#:iterate #:rutils #:cl-test-more #:cl-interpol
-			 #:esrap #:alexandria)
+			 #:esrap #:alexandria #:yaclanapht)
   :components ((:file "package")
 	       (:file "esrap-parser-basics")
 	       (:file "cl-yaclyaml-new")
