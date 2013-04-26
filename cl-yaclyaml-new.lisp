@@ -502,5 +502,49 @@
 (define-rule l-trail-comments (and s-indent-<n c-nb-comment-text b-comment
 				   (* l-comment)))
 
-;; (define-rule c-l+literal (wrap (and  "|" c-b-block-header)
-;; 			       l-literal-content))
+
+(let ((chomping-map '(("+" . :keep) ("-" . :strip) ("" . :clip))))
+  (define-rule c-l+literal (wrap (and  "|" c-b-block-header)
+				 l-literal-content)
+  (:wrap-around 
+   (let ((block-scalar-chomping (cdr (assoc (cdr (assoc :block-chomping-indicator (cadr wrapper)))
+					    chomping-map :test #'equal)))
+	 (n ...)) ; somehow we should implement indentation detection from first non-empty line.
+     (call-parser)))))
+
+
+(define-rule l-nb-literal-text (and (* l-empty)
+
+(define-rule l-literal
+
+
+;;; Plain scalars
+(define-rule ns-plain-first (or (and (! c-indicator) ns-char)
+				(and (or #\? #\: #\-) (& ns-plain-safe))))
+(define-rule ns-plain-safe-flow-out ns-plain-safe-out (:when (eql c :flow-out)))
+(define-rule ns-plain-safe-flow-in ns-plain-safe-in (:when (eql c :flow-in)))
+(define-rule ns-plain-safe-block-key ns-plain-safe-out (:when (eql c :block-key)))
+(define-rule ns-plain-safe-flow-key ns-plain-safe-in (:when (eql c :flow-key)))
+(define-rule ns-plain-safe (or ns-plain-safe-flow-in
+			       ns-plain-safe-flow-out
+			       ns-plain-safe-flow-key
+			       ns-plain-safe-block-key))
+(define-rule ns-plain-safe-out ns-char)
+(define-rule ns-plain-safe-in (and (! c-flow-indicator) ns-char))
+(define-rule ns-plain-char (or (and (! #\:) (! #\#))
+			       (and ns-char (& #\#))
+			       (and #\: (& ns-plain-safe))))
+  
+(define-rule ns-plain-flow-out ns-plain-out (:when (eql c :flow-out)))
+(define-rule ns-plain-flow-in ns-plain-in (:when (eql c :flow-in)))
+(define-rule ns-plain-block-key ns-plain-out (:when (eql c :block-key)))
+(define-rule ns-plain-flow-key ns-plain-in (:when (eql c :flow-key)))
+(define-rule ns-plain (or ns-plain-flow-in
+			  ns-plain-flow-out
+			  ns-plain-flow-key
+			  ns-plain-block-key))
+(define-rule nb-ns-plain-in-line (* (and (* s-white) ns-plain-char)))
+(define-rule ns-plain-one-line (and ns-plain-first nb-ns-plain-in-line)
+  (:text t))
+
+

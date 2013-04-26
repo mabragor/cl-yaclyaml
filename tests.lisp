@@ -19,5 +19,13 @@
 
 (test block-scalar-header
   (is (equal '((:block-indentation-indicator . "3") (:block-chomping-indicator . "-"))
-	     (yaclyaml-parse 'c-b-block-header #?"3- #asdf\n"))))
+	     (yaclyaml-parse 'c-b-block-header #?"3- #asdf\n")))
+  (is (equal '((:block-chomping-indicator . "-") (:block-indentation-indicator . "3"))
+	     (yaclyaml-parse 'c-b-block-header #?"-3 #asdf\n")))
+  (is (equal '((:block-chomping-indicator . "-") (:block-indentation-indicator . ""))
+	     (yaclyaml-parse 'c-b-block-header #?"- #asdf\n")))
+  (is (equal '((:block-indentation-indicator . "3") (:block-chomping-indicator . ""))
+	     (yaclyaml-parse 'c-b-block-header #?"3 #asdf\n")))
+  (is (equal '((:block-chomping-indicator . "") (:block-indentation-indicator . ""))
+	     (yaclyaml-parse 'c-b-block-header #?" #asdf\n"))))
 
