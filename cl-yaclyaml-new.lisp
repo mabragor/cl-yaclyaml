@@ -576,3 +576,13 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 (define-rule ns-plain-multi-line (and ns-plain-one-line
 				      (* s-ns-plain-next-line))
   (:text t))
+
+;; block sequences
+
+(define-rule l+block-sequence (wrap detect-block-sequence
+				    (+ (and s-indent-=n c-l-block-seq-entry)))
+  (:wrap-around (let ((n wrapper)
+		      (c :block-in))
+		  (call-parser))))
+
+(define-rule c-l-block-seq-entry (and "-" (! ns-char) s-l+block-indented))
