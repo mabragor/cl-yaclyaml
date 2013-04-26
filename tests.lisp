@@ -49,3 +49,8 @@
 	     (yaclyaml-parse 'c-l-block-scalar
 			     #?">\n foobar\n   * bullet\n   * list\n\n   * lines\n"))))
       
+(test plain-scalars
+  (is (equal #?"1st non-empty\n2nd non-empty 3rd non-empty"
+	     (yaclyaml-parse 'ns-plain
+			     #?"1st non-empty\n\n 2nd non-empty \n\t3rd non-empty"))))
+  

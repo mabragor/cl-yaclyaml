@@ -192,7 +192,7 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 ;; Indentation
 
 (define-context-rules n autodetect)
-(define-context-rules c block-out block-in flow-out flow-in)
+(define-context-rules c block-out block-in flow-out flow-in block-key flow-key)
 
 (define-rule s-indent-<n (cond (autodetect-context (* s-space))
 			       (t (* (- n 1) s-space)))
@@ -224,7 +224,10 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 
 (define-rule b-l-folded (or b-l-trimmed b-as-space))
 
-(define-rule s-flow-folded (and (? s-separate-in-line) b-l-folded s-flow-line-prefix))
+(define-rule s-flow-folded (and (? s-separate-in-line) b-l-folded s-flow-line-prefix)
+  (:destructure (sep0 content pref0)
+		(declare (ignore sep0 pref0))
+		content))
 
 ;; comments
 
@@ -545,32 +548,31 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 				   l-chomped-empty))
 
 ;;; Plain scalars
+
 (define-rule ns-plain-first (or (and (! c-indicator) ns-char)
 				(and (or #\? #\: #\-) (& ns-plain-safe))))
-(define-rule ns-plain-safe-flow-out ns-plain-safe-out (:when (eql c :flow-out)))
-(define-rule ns-plain-safe-flow-in ns-plain-safe-in (:when (eql c :flow-in)))
-(define-rule ns-plain-safe-block-key ns-plain-safe-out (:when (eql c :block-key)))
-(define-rule ns-plain-safe-flow-key ns-plain-safe-in (:when (eql c :flow-key)))
-(define-rule ns-plain-safe (or ns-plain-safe-flow-in
-			       ns-plain-safe-flow-out
-			       ns-plain-safe-flow-key
-			       ns-plain-safe-block-key))
+(define-rule ns-plain-safe (cond ((or flow-out-context
+				      block-key-context
+				      block-in-context
+				      block-out-context) ns-plain-safe-out)
+				 ((or flow-in-context flow-key-context) ns-plain-safe-in)))
 (define-rule ns-plain-safe-out ns-char)
 (define-rule ns-plain-safe-in (and (! c-flow-indicator) ns-char))
-(define-rule ns-plain-char (or (and (! #\:) (! #\#))
+(define-rule ns-plain-char (or (and (! #\:) (! #\#) ns-plain-safe)
 			       (and ns-char (& #\#))
 			       (and #\: (& ns-plain-safe))))
   
-(define-rule ns-plain-flow-out ns-plain-out (:when (eql c :flow-out)))
-(define-rule ns-plain-flow-in ns-plain-in (:when (eql c :flow-in)))
-(define-rule ns-plain-block-key ns-plain-out (:when (eql c :block-key)))
-(define-rule ns-plain-flow-key ns-plain-in (:when (eql c :flow-key)))
-(define-rule ns-plain (or ns-plain-flow-in
-			  ns-plain-flow-out
-			  ns-plain-flow-key
-			  ns-plain-block-key))
+(define-rule ns-plain (cond ((or flow-out-context
+				 flow-in-context
+				 block-out-context
+				 block-in-context) ns-plain-multi-line)
+			    ((or block-key-context flow-key-context) ns-plain-one-line)))
+
 (define-rule nb-ns-plain-in-line (* (and (* s-white) ns-plain-char)))
 (define-rule ns-plain-one-line (and ns-plain-first nb-ns-plain-in-line)
   (:text t))
 
-
+(define-rule s-ns-plain-next-line (and s-flow-folded ns-plain-char nb-ns-plain-in-line))
+(define-rule ns-plain-multi-line (and ns-plain-one-line
+				      (* s-ns-plain-next-line))
+  (:text t))
