@@ -53,4 +53,35 @@
   (is (equal #?"1st non-empty\n2nd non-empty 3rd non-empty"
 	     (yaclyaml-parse 'ns-plain
 			     #?"1st non-empty\n\n 2nd non-empty \n\t3rd non-empty"))))
+
+(test double-quoted-scalars
+  (is (equal "implicit block key" (let ((cl-yaclyaml::c :block-key))
+				    (yaclyaml-parse 'c-double-quoted "\"implicit block key\""))))
+  (is (equal "implicit flow key" (let ((cl-yaclyaml::c :flow-key))
+				   (yaclyaml-parse 'c-double-quoted "\"implicit flow key\""))))
+  (is (equal #?"folded to a space"
+	     (yaclyaml-parse 'c-double-quoted
+			     #?"\"folded \nto a space\"")))
+  (is (equal #?",\nto a line feed"
+  	     (yaclyaml-parse 'c-double-quoted
+  			     #?"\",\t\n \nto a line feed\"")))
+  (is (equal #?"or \t \tnon-content"
+  	     (yaclyaml-parse 'c-double-quoted
+  			     #?"\"or \t\\\n \\ \tnon-content\"")))
+  ;; and all the above components together
+  (is (equal #?"folded to a space,\nto a line feed, or \t \tnon-content"
+  	     (yaclyaml-parse 'c-double-quoted
+  			     #?"\"folded \nto a space,\t\n \nto a line feed, or \t\\\n \\ \tnon-content\"")))
+  (is (equal #?" 1st non-empty\n2nd non-empty 3rd non-empty "
+  	     (yaclyaml-parse 'c-double-quoted
+  			     #?"\" 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty \"")))
+
+  )
   
+(test flow-nodes
+  (is (equal '("one" "two") (yaclyaml-parse 'c-flow-sequence #?"[ one, two, ]")))
+  (is (equal '("three" "four") (yaclyaml-parse 'c-flow-sequence #?"[three ,four]"))))
+  ;; (is (equal '("three" "four")
+  ;; 	     (yaclyaml-parse 'c-flow-sequence
+  ;; 			     #?"[\n\"double\n quoted\", 'single
+  ;;      quoted',\nplain\n text, [ nested ],\nsingle: pair,\n]"))))

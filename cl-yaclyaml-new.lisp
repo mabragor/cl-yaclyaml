@@ -36,6 +36,13 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 			   (:constant nil))))
 		    contexts)))
 
+(defmacro define-context-forcing-rule (context-name forsee-name &optional (expression forsee-name))
+  "Define a rule, that enforces a context, when attempting to parse the EXPRESSION."
+  `(define-rule ,(sb-int:symbolicate context-name "-" forsee-name)
+       (wrap ""
+	     ,expression)
+     (:wrap-around (let ((c ,(sb-int:keywordicate context-name)))
+		     (call-parser)))))
 
 (define-alias-rules (;; block structure indicators
 		     (c-sequence-entry #\-)
@@ -105,8 +112,7 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 
 (define-rule s-space #\space)
 (define-rule s-tab #\tab)
-(define-rule s-white (or s-space s-tab)
-  (:constant #\space))
+(define-rule s-white (or s-space s-tab))
 
 (define-rule ns-char (and (! s-white) nb-char)
   (:lambda (x) (cadr x)))
@@ -141,7 +147,7 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 (define-rule ns-esc-form-feed #\f (:constant (code-char 12)))
 (define-rule ns-esc-carriage-return #\r (:constant (code-char 13)))
 (define-rule ns-esc-escape #\e (:constant (code-char 27)))
-(define-rule ns-esc-space #\space)
+(define-rule ns-esc-space #\space (:constant nil))
 (define-rule ns-esc-double-quote #\")
 (define-rule ns-esc-slash #\/)
 (define-rule ns-esc-backslash #\\)
@@ -204,8 +210,7 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 			       (t (* n n s-space)))
   (:lambda (x) (length x)))
 
-(define-rule s-separate-in-line (+ s-white) ; TODO or /* Start line */
-  (:constant " "))
+(define-rule s-separate-in-line (+ s-white)) ; TODO or /* Start line */
 
 (define-rule s-block-line-prefix s-indent-=n)
 (define-rule s-flow-line-prefix (and s-indent-=n (? s-separate-in-line)))
@@ -341,7 +346,8 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 (define-rule c-ns-alias-node (and #\* ns-anchor-name))
 
 ;;; empty node
-;;(define-rule e-scalar ()) ; how to express this I wounder.
+(define-rule e-scalar "")
+(define-rule e-node e-scalar)
     
 ;;; double-quoted-scalars
 
@@ -352,32 +358,31 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
   (:destructure (start meat end)
 		(declare (ignore start end))
 		(text meat)))
-(define-rule nb-double-text-flow-out nb-double-multi-line (:when (eql c :flow-out)))
-(define-rule nb-double-text-flow-in nb-double-multi-line (:when (eql c :flow-in)))
-(define-rule nb-double-text-block-key nb-double-one-line (:when (eql c :block-key)))
-(define-rule nb-double-text-flow-key nb-double-one-line (:when (eql c :flow-key)))
-(define-rule nb-double-text (or nb-double-text-flow-in
-				nb-double-text-flow-out
-				nb-double-text-flow-key
-				nb-double-text-block-key))
+(define-rule nb-double-text (cond ((or block-key-context flow-key-context) nb-double-one-line)
+				  ((or block-out-context
+				       block-in-context
+				       flow-out-context
+				       flow-in-context) nb-double-multi-line)))
 
 (define-rule nb-double-one-line (* nb-double-char))
 
+(define-context-forcing-rule flow-in l-empty)
+
 (define-rule s-double-escaped (and (* s-white) #\\ b-non-content
-				   l-empty s-flow-line-prefix))
+				   (* flow-in-l-empty) s-flow-line-prefix)
+  (:destructure (white slash bnc empties pref)
+		(declare (ignore slash bnc))
+		`(,white ,empties ,(mapcar (lambda (x) (if (numberp x) (make-string x :initial-element #\space) x))
+					   pref))))
 (define-rule s-double-break (or s-double-escaped s-flow-folded))
 (define-rule nb-ns-double-in-line (* (and (* s-white) ns-double-char)))
-;; (define-rule s-double-next-line (and s-double-break
-;; 				     (? (and ns-double-char
-;; 					     nb-ns-double-in-line
-;; 					     (or s-double-next-line (* s-white)))))
-;;   (:destructure (bbreak lst)
-;; 		(if 
+(define-rule s-double-next-line (and s-double-break
+				     (? (and ns-double-char
+					     nb-ns-double-in-line
+					     (or s-double-next-line (* s-white))))))
+
 (define-rule nb-double-multi-line (and nb-ns-double-in-line
-				       (or s-double-next-line (* s-white)))
-  (:destructure (first-line rest-lines)
-		(text `(,(string-left-trim '(#\space #\tab) (text first-line))
-			 ,(if (whitespace-p (text rest-lines)) "" (text rest-lines))))))
+				       (or s-double-next-line (* s-white))))
 
 (defun whitespace-p (text)
   (iter (for char in-string text)
@@ -638,4 +643,104 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
   (:wrap-around (let ((n (1+ n)))
 		  (call-parser))))
 
-(define-rule s-l+block-collection (and block-node-properties
+;; (define-rule s-l+block-collection (and block-node-properties
+
+;; flow collections
+
+(defun in-flow (context)
+  (case context
+    ((:block-in :block-out :flow-in :flow-out) :flow-in)
+    ((:block-key :flow-key) :flow-key)))
+
+(define-rule c-flow-sequence (wrap (and #\[ (? s-separate))
+				   (and (? ns-s-flow-seq-entries) #\]))
+  (:wrap-around (let ((c (in-flow c)))
+		  (call-parser)))
+  (:destructure (content brace)
+		(declare (ignore brace))
+		content))
+
+(define-rule ns-s-flow-seq-entries (and ns-flow-seq-entry
+					(? s-separate)
+					(? (and #\, (? s-separate) (? ns-s-flow-seq-entries))))
+  (:destructure (entry0 sep0 rest)
+		(declare (ignore sep0))
+		(if rest
+		    (destructuring-bind (comma sep1 entries) rest
+			(declare (ignore comma sep1))
+			`(,entry0 ,. entries))
+		    `(,entry0))))
+
+(define-rule ns-flow-seq-entry (or ns-flow-pair ns-flow-node))
+
+(define-rule c-flow-mapping (wrap (and #\{ s-separate)
+				  (and (? ns-s-flow-map-entries) #\}))
+  (:wrap-around (let ((c (in-flow c)))
+		  (call-parser))))
+
+(define-rule ns-s-flow-map-entries (and ns-flow-map-entry
+					(? s-separate)
+					(? (and #\, (? s-separate) (? ns-s-flow-map-entries)))))
+
+(define-rule ns-flow-map-entry (or (and #\? s-separate ns-flow-map-explicit-entry)
+				   ns-flow-map-implicit-entry))
+(define-rule ns-flow-map-explicit-entry (or ns-flow-map-implicit-entry
+					    (and e-node e-node)))
+
+(define-rule ns-flow-map-implicit-entry (or ns-flow-map-yaml-key-entry
+					    c-ns-flow-map-empty-key-entry
+					    c-ns-flow-map-json-key-entry))
+(define-rule ns-flow-map-yaml-key-entry (and ns-flow-yaml-node
+					     (or (and (? s-separate) c-ns-flow-map-separate-value)
+						 e-node)))
+(define-rule c-ns-flow-map-empty-key-entry (and e-node c-ns-flow-map-separate-value))
+
+(define-rule c-ns-flow-map-separate-value (cond ((and #\: (! ns-plain-safe)) (or (and s-separate ns-flow-node)
+										 e-node))))
+
+(define-rule c-ns-flow-map-json-key-entry (and c-flow-json-node
+					       (or (and (? s-separate) c-ns-flow-map-adjacent-value)
+						   e-node)))
+(define-rule c-ns-flow-map-adjacent-value (and #\: (or (and (? s-separate) c-ns-flow-node)
+						       e-node)))
+
+(define-rule ns-flow-pair (or (and #\? s-separate ns-flow-map-explicit-entry)
+			      ns-flow-pair-entry))
+
+(define-rule ns-flow-pair-entry (or ns-flow-pair-yaml-key-entry
+				    c-ns-flow-map-empty-key-entry
+				    c-ns-flow-pair-json-key-entry))
+
+
+(define-context-forcing-rule flow-key ns-s-implicit-yaml-key)
+(define-context-forcing-rule flow-key c-s-implicit-json-key)
+
+(define-rule ns-flow-pair-yaml-key-entry (and flow-key-ns-s-implicit-yaml-key
+					      c-ns-flow-map-separate-value))
+(define-rule c-ns-flow-pair-json-key-entry (and flow-key-c-s-implicit-json-key
+						c-ns-flow-map-adjacent-value))
+
+;; FIXME: implement restriction on the length of the key
+;; FIXME: implement n/a in the indentation portion
+(define-rule ns-s-implicit-yaml-key (and ns-flow-yaml-node (? s-separate-in-line)))
+(define-rule c-s-implicit-json-key (and c-flow-json-node (? s-separate-in-line)))
+
+(define-rule ns-flow-yaml-content ns-plain)
+(define-rule c-flow-json-content (or c-flow-sequence c-flow-mapping c-single-quoted c-double-quoted))
+(define-rule ns-flow-content (or ns-flow-yaml-content c-flow-json-content))
+
+(define-rule ns-flow-yaml-node (or c-ns-alias-node
+				   ns-flow-yaml-content
+				   (and c-ns-properties
+					(or (and s-separate ns-flow-yaml-content)
+					    e-scalar))))
+
+(define-rule c-flow-json-node (and (? (and c-ns-properties s-separate))
+				   c-flow-json-content))
+
+(define-rule ns-flow-node (or c-ns-alias-node
+			      ns-flow-content
+			      (and c-ns-properties
+				   (or (and s-separate ns-flow-content)
+				       e-scalar))))
+
