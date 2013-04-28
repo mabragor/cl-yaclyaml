@@ -74,9 +74,16 @@
   			     #?"\"folded \nto a space,\t\n \nto a line feed, or \t\\\n \\ \tnon-content\"")))
   (is (equal #?" 1st non-empty\n2nd non-empty 3rd non-empty "
   	     (yaclyaml-parse 'c-double-quoted
-  			     #?"\" 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty \"")))
+  			     #?"\" 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty \""))))
 
+(test single-quoted-scalars
+  (is (equal "here's to \"quotes\""
+	     (yaclyaml-parse 'c-single-quoted "'here''s to \"quotes\"'")))
+  (is (equal #?" 1st non-empty\n2nd non-empty 3rd non-empty "
+	     (yaclyaml-parse 'c-single-quoted
+			     #?"' 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty '")))
   )
+  
   
 (test flow-nodes
   (is (equal '("one" "two") (yaclyaml-parse 'c-flow-sequence #?"[ one, two, ]")))

@@ -401,14 +401,12 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
   (:destructure (start meat end)
 		(declare (ignore start end))
 		(text meat)))
-(define-rule nb-single-text-flow-out nb-single-multi-line (:when (eql c :flow-out)))
-(define-rule nb-single-text-flow-in nb-single-multi-line (:when (eql c :flow-in)))
-(define-rule nb-single-text-block-key nb-single-one-line (:when (eql c :block-key)))
-(define-rule nb-single-text-flow-key nb-single-one-line (:when (eql c :flow-key)))
-(define-rule nb-single-text (or nb-single-text-flow-in
-				nb-single-text-flow-out
-				nb-single-text-flow-key
-				nb-single-text-block-key))
+(define-rule nb-single-text (cond ((or block-key-context flow-key-context) nb-single-one-line)
+				  ((or block-out-context
+				       block-in-context
+				       flow-out-context
+				       flow-in-context) nb-single-multi-line)))
+
 (define-rule nb-single-one-line (* nb-single-char))
 
 (define-rule nb-ns-single-in-line (* (and (* s-white) ns-single-char)))
