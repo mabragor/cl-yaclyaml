@@ -4,7 +4,7 @@
 ;;; Hopefully, this will allow me to finish faster, than with
 ;;; Lisp-reader-like approach.
 
-(define-esrap-env yaclyaml)
+(define-esrap-env yaclyaml :default-context :block-out)
 
 ;;; Indicator characters
 
@@ -25,23 +25,32 @@
   "Define rules, that consume nothing, but pass only if CONTEXT-VAR is equal to
 something particular.
 For cases, when you do not want to keep a bunch of sub-rules with different :WHEN's around."
-  `(progn (defparameter ,context-var ,(sb-int:keywordicate (car contexts)))
-	  ,@(mapcar (lambda (context-name)
-		      `(progn
-			 (defun ,(sb-int:symbolicate context-name "-CONTEXT-P") (x)
-			   (declare (ignore x))
-			   (eql ,context-var ,(sb-int:keywordicate context-name)))
-			 (define-rule ,(sb-int:symbolicate context-name "-CONTEXT")
-			     (,(sb-int:symbolicate context-name "-CONTEXT-P") "")
-			   (:constant nil))))
-		    contexts)))
+  (macrolet ((frob ()
+	       ``(progn ,(if (not (eql perk :nodefine))
+			     `(defparameter ,context-var ,(sb-int:keywordicate (car contexts))))
+			,@(mapcar (lambda (context-name)
+				    `(progn
+				       (defun ,(sb-int:symbolicate context-name "-CONTEXT-P")
+					   (x)
+					 (declare (ignore x))
+					 (eql ,context-var ,(sb-int:keywordicate context-name)))
+				       (define-rule ,(sb-int:symbolicate context-name
+									 "-CONTEXT")
+					   (,(sb-int:symbolicate context-name "-CONTEXT-P") "")
+					 (:constant nil))))
+				  contexts))))
+    (if (consp context-var)
+	(destructuring-bind (context-var perk) context-var
+	  (frob))
+	(let (perk)
+	  (frob)))))
 
 (defmacro define-context-forcing-rule (context-name forsee-name &optional (expression forsee-name))
   "Define a rule, that enforces a context, when attempting to parse the EXPRESSION."
   `(define-rule ,(sb-int:symbolicate context-name "-" forsee-name)
        (wrap ""
 	     ,expression)
-     (:wrap-around (let ((c ,(sb-int:keywordicate context-name)))
+     (:wrap-around (let ((context ,(sb-int:keywordicate context-name)))
 		     (call-parser)))))
 
 (define-alias-rules (;; block structure indicators
@@ -198,7 +207,8 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 ;; Indentation
 
 (define-context-rules n autodetect)
-(define-context-rules c block-out block-in flow-out flow-in block-key flow-key)
+(define-context-rules (context :nodefine)
+    block-out block-in flow-out flow-in block-key flow-key)
 
 (define-rule s-indent-<n (cond (autodetect-context (* s-space))
 			       (t (* (- n 1) s-space)))
@@ -496,7 +506,7 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 		(if (not (equal it ""))
 		    (parse-integer it)
 		    :autodetect)))
-	   (c :block-in))
+	   (context :block-in))
        (call-parser)))
     (:text t)))
 
@@ -539,7 +549,10 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 ;;; Plain scalars
 
 (define-rule ns-plain-first (or (and (! c-indicator) ns-char)
-				(and (or #\? #\: #\-) (& ns-plain-safe))))
+				(and (or #\? #\: #\-) (& ns-plain-safe)))
+  (:destructure (first second)
+		(or first second)))
+
 (define-rule ns-plain-safe (cond ((or flow-out-context
 				      block-key-context
 				      block-in-context
@@ -547,9 +560,9 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 				 ((or flow-in-context flow-key-context) ns-plain-safe-in)))
 (define-rule ns-plain-safe-out ns-char)
 (define-rule ns-plain-safe-in (and (! c-flow-indicator) ns-char))
-(define-rule ns-plain-char (or (and (! #\:) (! #\#) ns-plain-safe)
-			       (and ns-char (& #\#))
-			       (and #\: (& ns-plain-safe))))
+(define-rule ns-plain-char (cond ((and (! #\:) (! #\#)) ns-plain-safe)
+				 ((<- ns-char) #\#)
+				 (t (and #\: (-> ns-plain-safe)))))
   
 (define-rule ns-plain (cond ((or flow-out-context
 				 flow-in-context
@@ -571,7 +584,7 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 (define-rule l+block-sequence (wrap detect-block-sequence
 				    (+ (and s-indent-=n c-l-block-seq-entry)))
   (:wrap-around (let ((n wrapper)
-		      (c :block-in))
+		      (context :block-in))
 		  (call-parser))))
 
 (define-rule c-l-block-seq-entry (and "-" (! ns-char) s-l+block-indented))
@@ -594,11 +607,11 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 						   e-node)))
 (define-rule c-l-block-map-explicit-key (wrap ""
 					      (cond (#\? s-l+block-indented)))
-  (:wrap-around (let ((c :block-out))
+  (:wrap-around (let ((context :block-out))
 		  (call-parser))))
 (define-rule l-block-map-explicit-value (wrap ""
 					      (cond ((and s-indent-=n ":") s-l+block-indented)))
-  (:wrap-around (let ((c :block-out))
+  (:wrap-around (let ((context :block-out))
 		  (call-parser))))
 
 (define-rule ns-l-block-map-implicit-entry (and (or ns-s-block-map-implicit-key
@@ -607,12 +620,12 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 (define-rule ns-s-block-map-implicit-key (wrap ""
 					       (or c-s-implicit-json-key
 						   ns-s-implicit-yaml-key))
-  (:wrap-around (let ((c :block-key))
+  (:wrap-around (let ((context :block-key))
 		  (call-parser))))
 (define-rule c-l-block-map-implicit-value (wrap #\:
 						(or s-l+block-node
 						    (and e-node s-l-comments)))
-  (:wrap-around (let ((c :block-out))
+  (:wrap-around (let ((context :block-out))
 		  (call-parser))))
   
 (define-rule ns-l-compact-mapping (and ns-l-block-map-entry
@@ -627,7 +640,7 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 (define-rule s-l+block-node (or s-l+block-in-block s-l+flow-in-block))
 (define-rule s-l+flow-in-block (wrap ""
 				     (and s-separate ns-flow-node s-l-comments))
-  (:wrap-around (let ((c :flow-out)
+  (:wrap-around (let ((context :flow-out)
 		      (n :autodetect))
 		  (call-parser))))
 
@@ -652,7 +665,7 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 
 (define-rule c-flow-sequence (wrap (and #\[ (? s-separate))
 				   (and (? ns-s-flow-seq-entries) #\]))
-  (:wrap-around (let ((c (in-flow c)))
+  (:wrap-around (let ((context (in-flow context)))
 		  (call-parser)))
   (:destructure (content brace)
 		(declare (ignore brace))
@@ -671,30 +684,45 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 
 (define-rule ns-flow-seq-entry (or ns-flow-pair ns-flow-node))
 
-(define-rule c-flow-mapping (wrap (and #\{ s-separate)
+(define-rule c-flow-mapping (wrap (and #\{ (? s-separate))
 				  (and (? ns-s-flow-map-entries) #\}))
-  (:wrap-around (let ((c (in-flow c)))
-		  (call-parser))))
+  (:wrap-around (let ((context (in-flow context)))
+		  (call-parser)))
+  (:destructure (entries brace)
+		(declare (ignore brace))
+		`(:mapping ,. entries)))
 
 (define-rule ns-s-flow-map-entries (and ns-flow-map-entry
 					(? s-separate)
-					(? (and #\, (? s-separate) (? ns-s-flow-map-entries)))))
+					(? (and #\, (? s-separate) (? ns-s-flow-map-entries))))
+  (:destructure (entry0 sep0 rest)
+		(declare (ignore sep0))
+		(if rest
+		    (destructuring-bind (comma sep1 entries) rest
+			(declare (ignore comma sep1))
+			`(,entry0 ,. entries))
+		    `(,entry0))))
 
-(define-rule ns-flow-map-entry (or (and #\? s-separate ns-flow-map-explicit-entry)
-				   ns-flow-map-implicit-entry))
+
+(define-rule ns-flow-map-entry (cond ((and #\? s-separate) ns-flow-map-explicit-entry)
+				     (t ns-flow-map-implicit-entry))
+  (:destructure (key value)
+		`(,key . ,value)))
 (define-rule ns-flow-map-explicit-entry (or ns-flow-map-implicit-entry
 					    (and e-node e-node)))
 
 (define-rule ns-flow-map-implicit-entry (or ns-flow-map-yaml-key-entry
 					    c-ns-flow-map-empty-key-entry
 					    c-ns-flow-map-json-key-entry))
-(define-rule ns-flow-map-yaml-key-entry (and ns-flow-yaml-node
-					     (or (and (? s-separate) c-ns-flow-map-separate-value)
-						 e-node)))
+(define-rule ns-flow-map-yaml-key-entry
+    (and ns-flow-yaml-node
+	 (cond ((? s-separate) c-ns-flow-map-separate-value)
+	       (t e-node))))
 (define-rule c-ns-flow-map-empty-key-entry (and e-node c-ns-flow-map-separate-value))
 
-(define-rule c-ns-flow-map-separate-value (cond ((and #\: (! ns-plain-safe)) (or (and s-separate ns-flow-node)
-										 e-node))))
+(define-rule c-ns-flow-map-separate-value
+    (cond ((and #\: (! ns-plain-safe)) (cond (s-separate ns-flow-node)
+					     (t e-node)))))
 
 (define-rule c-ns-flow-map-json-key-entry (and c-flow-json-node
 					       (or (and (? s-separate) c-ns-flow-map-adjacent-value)

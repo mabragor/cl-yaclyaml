@@ -55,9 +55,9 @@
 			     #?"1st non-empty\n\n 2nd non-empty \n\t3rd non-empty"))))
 
 (test double-quoted-scalars
-  (is (equal "implicit block key" (let ((cl-yaclyaml::c :block-key))
+  (is (equal "implicit block key" (let ((cl-yaclyaml::context :block-key))
 				    (yaclyaml-parse 'c-double-quoted "\"implicit block key\""))))
-  (is (equal "implicit flow key" (let ((cl-yaclyaml::c :flow-key))
+  (is (equal "implicit flow key" (let ((cl-yaclyaml::context :flow-key))
 				   (yaclyaml-parse 'c-double-quoted "\"implicit flow key\""))))
   (is (equal #?"folded to a space"
 	     (yaclyaml-parse 'c-double-quoted
@@ -81,14 +81,53 @@
 	     (yaclyaml-parse 'c-single-quoted "'here''s to \"quotes\"'")))
   (is (equal #?" 1st non-empty\n2nd non-empty 3rd non-empty "
 	     (yaclyaml-parse 'c-single-quoted
-			     #?"' 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty '")))
-  )
+			     #?"' 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty '"))))
   
   
-(test flow-nodes
+(test flow-sequence-nodes
   (is (equal '("one" "two") (yaclyaml-parse 'c-flow-sequence #?"[ one, two, ]")))
-  (is (equal '("three" "four") (yaclyaml-parse 'c-flow-sequence #?"[three ,four]"))))
-  ;; (is (equal '("three" "four")
+  (is (equal '("three" "four") (yaclyaml-parse 'c-flow-sequence #?"[three ,four]")))
+  ;; (is (equal '("double quoted" "single quoted" "plain text" ("nested")
+  ;; 	       (:mapping ("single" . "pair")))
   ;; 	     (yaclyaml-parse 'c-flow-sequence
   ;; 			     #?"[\n\"double\n quoted\", 'single
-  ;;      quoted',\nplain\n text, [ nested ],\nsingle: pair,\n]"))))
+  ;;      quoted',\nplain\n text, [ nested ],\nsingle: pair,\n]")))
+  )
+
+(test plain-scalars
+  (is (equal "::vector"
+	     (let ((cl-yaclyaml::context :block-in))
+	       (yaclyaml-parse 'ns-plain
+			       #?"::vector"))))
+  (is (equal "Up, up, and away!"
+	     (let ((cl-yaclyaml::context :block-in))
+	       (yaclyaml-parse 'ns-plain
+			       #?"Up, up, and away!"))))
+  (is (equal "-123"
+	     (let ((cl-yaclyaml::context :block-in))
+	       (yaclyaml-parse 'ns-plain
+			       #?"-123"))))
+  (is (equal "http://example.com/foo#bar"
+	     (let ((cl-yaclyaml::context :block-in))
+	       (yaclyaml-parse 'ns-plain
+			       #?"http://example.com/foo#bar"))))
+  )
+
+(test flow-mapping-nodes
+  (is (equal '(:mapping ("one" . "two") ("three" . "four"))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{ one : two , three: four , }")))
+  (is (equal '(:mapping ("five" . "six") ("seven" . "eight"))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{five: six,seven : eight}")))
+  (is (equal '(:mapping ("explicit" . "entry") ("implicit" . "entry") ("" . ""))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{\n? explicit: entry,\nimplicit: entry,\n?\n}")))
+  (is (equal '(:mapping ("unquoted" . "separate")
+	       ("http://foo.com" . "")
+	       ("omitted value" . "")
+	       ("" . "omitted key"))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{\nunquoted : \"separate\",\nhttp://foo.com,
+omitted value:,\n: omitted key,\n}")))
+  )
