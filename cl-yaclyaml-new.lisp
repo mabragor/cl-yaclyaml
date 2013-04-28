@@ -725,13 +725,15 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 					     (t e-node)))))
 
 (define-rule c-ns-flow-map-json-key-entry (and c-flow-json-node
-					       (or (and (? s-separate) c-ns-flow-map-adjacent-value)
-						   e-node)))
-(define-rule c-ns-flow-map-adjacent-value (and #\: (or (and (? s-separate) c-ns-flow-node)
-						       e-node)))
+					       (cond ((? s-separate) c-ns-flow-map-adjacent-value)
+						     (t e-node))))
+(define-rule c-ns-flow-map-adjacent-value (cond (#\: (cond ((? s-separate) ns-flow-node)
+							   (t e-node)))))
 
-(define-rule ns-flow-pair (or (and #\? s-separate ns-flow-map-explicit-entry)
-			      ns-flow-pair-entry))
+(define-rule ns-flow-pair (cond ((and #\? s-separate) ns-flow-map-explicit-entry)
+				(t ns-flow-pair-entry))
+  (:destructure (key value)
+    `(:mapping (,key . ,value))))
 
 (define-rule ns-flow-pair-entry (or ns-flow-pair-yaml-key-entry
 				    c-ns-flow-map-empty-key-entry
@@ -743,13 +745,16 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 
 (define-rule ns-flow-pair-yaml-key-entry (and flow-key-ns-s-implicit-yaml-key
 					      c-ns-flow-map-separate-value))
+
 (define-rule c-ns-flow-pair-json-key-entry (and flow-key-c-s-implicit-json-key
 						c-ns-flow-map-adjacent-value))
 
 ;; FIXME: implement restriction on the length of the key
 ;; FIXME: implement n/a in the indentation portion
-(define-rule ns-s-implicit-yaml-key (and ns-flow-yaml-node (? s-separate-in-line)))
-(define-rule c-s-implicit-json-key (and c-flow-json-node (? s-separate-in-line)))
+(define-rule ns-s-implicit-yaml-key (and ns-flow-yaml-node (? s-separate-in-line))
+  (:lambda (lst) (car lst)))
+(define-rule c-s-implicit-json-key (and c-flow-json-node (? s-separate-in-line))
+  (:lambda (lst) (car lst)))
 
 (define-rule ns-flow-yaml-content ns-plain)
 (define-rule c-flow-json-content (or c-flow-sequence c-flow-mapping c-single-quoted c-double-quoted))
@@ -762,7 +767,11 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 					    e-scalar))))
 
 (define-rule c-flow-json-node (and (? (and c-ns-properties s-separate))
-				   c-flow-json-content))
+				   c-flow-json-content)
+  (:destructure (props content)
+		(if props
+		    `(:properties ,(car props) :content ,content)
+		    content)))
 
 (define-rule ns-flow-node (or c-ns-alias-node
 			      ns-flow-content

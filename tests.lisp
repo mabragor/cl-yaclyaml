@@ -130,4 +130,30 @@
 	     (yaclyaml-parse 'c-flow-mapping
 			     #?"{\nunquoted : \"separate\",\nhttp://foo.com,
 omitted value:,\n: omitted key,\n}")))
+  (is (equal '(:mapping ("adjacent" . "value")
+	       ("readable" . "value")
+	       ("empty" . ""))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{\n\"adjacent\":value,\n\"readable\": value,\n\"empty\":\n}")))
+  (is (equal '((:mapping ("foo" . "bar")))
+	     (yaclyaml-parse 'c-flow-sequence
+			     #?"[\nfoo: bar\n]")))
+  (is (equal '((:mapping ("foo bar" . "baz")))
+	     (yaclyaml-parse 'c-flow-sequence
+			     #?"[\n? foo\n bar : baz\n]")))
+  (is (equal '((:mapping ("YAML" . "separate")))
+	     (yaclyaml-parse 'c-flow-sequence
+			     #?"[ YAML : separate ]")))
+  (is (equal '((:mapping ("" . "empty key entry")))
+	     (yaclyaml-parse 'c-flow-sequence
+			     #?"[ : empty key entry ]")))
+  (is (equal '((:mapping ((:mapping ("JSON" . "like")) . "adjacent")))
+	     (yaclyaml-parse 'c-flow-sequence
+			     #?"[ {JSON: like}:adjacent ]")))
   )
+
+(test flow-nodes
+  (is (equal '((:mapping ("YAML" . "separate"))) (yaclyaml-parse 'ns-flow-node #?"!!str \"a\"")))
+  )
+  
+
