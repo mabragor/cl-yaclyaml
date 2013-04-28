@@ -206,7 +206,8 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 
 ;; Indentation
 
-(define-context-rules n autodetect)
+(defparameter n -1 "Current indent level.")
+(define-context-rules indent-style autodetect determined)
 (define-context-rules (context :nodefine)
     block-out block-in flow-out flow-in block-key flow-key)
 
@@ -216,7 +217,7 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 (define-rule s-indent-<=n (cond (autodetect-context (* s-space))
 				(t (* n s-space)))
   (:lambda (x) (length x)))
-(define-rule s-indent-=n (cond (autodetect-context (* s-space))
+(define-rule s-indent-=n (cond (autodetect-context (* n nil s-space))
 			       (t (* n n s-space)))
   (:lambda (x) (length x)))
 
@@ -499,15 +500,15 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
      (let ((block-scalar-chomping (cdr (assoc (cdr (assoc :block-chomping-indicator
 							  (cadr wrapper)))
 					      chomping-map :test #'equal)))
-	   (block-scalar-style (cdr (assoc (car wrapper) style-map :test #'equal)))
-	   ;; FIXME: implement auto-detection of indentation
-	   (n (let ((it (cdr (assoc :block-indentation-indicator
-				    (cadr wrapper)))))
-		(if (not (equal it ""))
-		    (parse-integer it)
-		    :autodetect)))
-	   (context :block-in))
-       (call-parser)))
+	   (block-scalar-style (cdr (assoc (car wrapper) style-map :test #'equal))))
+       (let ((it (cdr (assoc :block-indentation-indicator
+			     (cadr wrapper)))))
+	 (if (not (equal it ""))
+	     (let ((n (+ n (parse-integer it)))
+		   (indent-style :determined))
+	       (call-parser))
+	     (let ((indent-style :autodetect))
+	       (call-parser))))))
     (:text t)))
 
 (define-rule block-scalar-content (wrap (cond (autodetect-context detect-indent)
@@ -517,7 +518,8 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
   (:wrap-around
    (if (equal wrapper "")
        (call-parser)
-       (let ((n wrapper))
+       (let ((n wrapper)
+	     (indent-style :determined))
 	 (call-parser)))))
 
 (define-rule detect-indent (& (and (* l-empty) s-indent-=n nb-char))
@@ -582,26 +584,51 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 ;; block sequences
 
 (define-rule l+block-sequence (wrap detect-block-sequence
-				    (+ (and s-indent-=n c-l-block-seq-entry)))
+				    (+ (cond (s-indent-=n c-l-block-seq-entry))))
   (:wrap-around (let ((n wrapper)
+		      (indent-style :determined)
 		      (context :block-in))
 		  (call-parser))))
 
-(define-rule c-l-block-seq-entry (and "-" (! ns-char) s-l+block-indented))
+(define-rule detect-block-sequence (wrap ""
+					 (& (first (and s-indent-=n (& (and #\- (! ns-char)))))))
+  (:wrap-around (let ((indent-style :autodetect))
+		  (call-parser))))
 
-(define-rule s-l+block-indented (or ; (and s-indent-=n) ; something should be clearly done here
-				 s-l+block-node
-				 (and e-node s-l-comments)))
+(define-rule detect-block-mapping (wrap "" (& s-indent-=n))
+  (:wrap-around (let ((indent-style :autodetect))
+		  (call-parser))))
 
-; (define-rule ns-l-compact-sequence ...)
+
+(define-rule c-l-block-seq-entry (cond ((and "-" (! ns-char)) s-l+block-indented)))
+
+(define-rule s-l+block-indented (or compact-block-node
+				    s-l+block-node
+				    (first (and e-node s-l-comments))))
+
+(define-rule compact-block-node (wrap ""
+				      %compact-block-node)
+  (:wrap-around (let ((indent-style :autodetect))
+		  (call-parser))))
+(define-rule %compact-block-node (wrap s-indent-=n
+				       (or ns-l-compact-sequence ns-l-compact-mapping))
+  (:wrap-around (let ((n (+ n 1 wrapper))
+		      (indent-style :determined))
+		  (call-parser))))
+		  
+(define-rule ns-l-compact-sequence (and c-l-block-seq-entry
+					(* (cond (s-indent c-l-block-seq-entry))))
+  (:destructure (first rest)
+		`(,first ,. rest)))
 
 (define-rule l+block-mapping (wrap detect-block-mapping
 				   (+ (and s-indent-=n ns-l-block-map-entry)))
-  (:wrap-around (let ((n wrapper))
+  (:wrap-around (let ((n wrapper)
+		      (indent-style :determined))
 		  (call-parser))))
 
 (define-rule ns-l-block-map-entry (or c-l-block-map-explicit-entry
-				      c-l-block-map-implicit-entry))
+				      ns-l-block-map-implicit-entry))
 (define-rule c-l-block-map-explicit-entry (and c-l-block-map-explicit-key
 					       (or l-block-map-explicit-value
 						   e-node)))
@@ -631,17 +658,13 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 (define-rule ns-l-compact-mapping (and ns-l-block-map-entry
 				       (* (and s-indent-=n ns-l-block-map-entry))))
 
-;; I didn't finish block sequences, but I think, I'll figure out sooner or later how to do them
-
 ;; block nodes
-
-;; FIXME: autodetection of indentation should only detect indentation, that's greater, than the current one.
 
 (define-rule s-l+block-node (or s-l+block-in-block s-l+flow-in-block))
 (define-rule s-l+flow-in-block (wrap ""
-				     (and s-separate ns-flow-node s-l-comments))
+				     (cond (s-separate (first (and ns-flow-node s-l-comments)))))
   (:wrap-around (let ((context :flow-out)
-		      (n :autodetect))
+		      (n (1+ n)))
 		  (call-parser))))
 
 (define-rule s-l+block-in-block (or s-l+block-scalar s-l+block-collection))
@@ -654,7 +677,19 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
   (:wrap-around (let ((n (1+ n)))
 		  (call-parser))))
 
-;; (define-rule s-l+block-collection (and block-node-properties
+(defun seq-spaces (n)
+  (if (eql context :block-out)
+      (1- n)
+      n))
+
+(define-rule s-l+block-collection (and block-node-properties
+				       s-l-comments
+				       (or l+block-sequence-seq-spaces
+					   l+block-mapping)))
+
+(define-rule l+block-sequence-seq-spaces (wrap "" l+block-sequence)
+  (:wrap-around (let ((n (seq-spaces n)))
+		  (call-parser))))
 
 ;; flow collections
 

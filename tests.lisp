@@ -31,16 +31,16 @@
 
 
 (test literal-block-scalars
-  (is (equal #?" explicit\n" (yaclyaml-parse 'c-l-block-scalar #?"|1\n  explicit\n")))
-  (is (equal #?"text" (yaclyaml-parse 'c-l-block-scalar #?"|0-\ntext\n")))
-  (is (equal #?"text\n" (yaclyaml-parse 'c-l-block-scalar #?"|0\ntext\n")))
-  (is (equal #?"text\n" (yaclyaml-parse 'c-l-block-scalar #?"|0+\ntext\n")))
+  (is (equal #?" explicit\n" (yaclyaml-parse 'c-l-block-scalar #?"|2\n  explicit\n")))
+  (is (equal #?"text" (yaclyaml-parse 'c-l-block-scalar #?"|-\ntext\n")))
+  (is (equal #?"text\n" (yaclyaml-parse 'c-l-block-scalar #?"|\ntext\n")))
+  (is (equal #?"text\n" (yaclyaml-parse 'c-l-block-scalar #?"|+\ntext\n")))
   (is (equal #?"\n\nliteral\n \n\ntext\n"
 	     (yaclyaml-parse 'c-l-block-scalar
-			     #?"|2\n \n  \n  literal\n   \n  \n  text\n\n\n # Comment\n"))))
+			     #?"|3\n \n  \n  literal\n   \n  \n  text\n\n\n # Comment\n"))))
 
 (test folded-block-scalars
-  (is (equal #?"folded text\n" (yaclyaml-parse 'c-l-block-scalar #?">1\n folded text\n\n")))
+  (is (equal #?"folded text\n" (yaclyaml-parse 'c-l-block-scalar #?">\n folded text\n\n")))
   (is (equal #?"\nfolded line\nnext line\nlast line\n"
 	     (yaclyaml-parse 'c-l-block-scalar
 			     #?">\n\n folded\n line\n\n next\n line\n\n last\n line\n
@@ -152,8 +152,16 @@ omitted value:,\n: omitted key,\n}")))
 			     #?"[ {JSON: like}:adjacent ]")))
   )
 
-(test flow-nodes
-  (is (equal '((:mapping ("YAML" . "separate"))) (yaclyaml-parse 'ns-flow-node #?"!!str \"a\"")))
+(test block-sequences
+  (is (equal `("foo" "bar" "baz") (yaclyaml-parse 'l+block-sequence #?"- foo\n- bar\n- baz\n")))
+  (is (equal `("" ,#?"block node\n" ("one" "two"))
+	     (yaclyaml-parse 'l+block-sequence
+			     #?"- # Empty\n- |\n block node\n- - one # Compact\n  - two # sequence\n")))
   )
+  
+
+;; (test flow-nodes
+;;   (is (equal '((:mapping ("YAML" . "separate"))) (yaclyaml-parse 'ns-flow-node #?"!!str \"a\"")))
+;;   )
   
 
