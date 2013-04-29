@@ -154,11 +154,20 @@ omitted value:,\n: omitted key,\n}")))
 
 (test block-sequences
   (is (equal `("foo" "bar" "baz") (yaclyaml-parse 'l+block-sequence #?"- foo\n- bar\n- baz\n")))
-  (is (equal `("" ,#?"block node\n" ("one" "two"))
-	     (yaclyaml-parse 'l+block-sequence
-			     #?"- # Empty\n- |\n block node\n- - one # Compact\n  - two # sequence\n")))
+  ;; (is (equal `("" ,#?"block node\n" ("one" "two"))
+  ;; 	     (yaclyaml-parse 'l+block-sequence
+  ;; 			     #?"- # Empty\n- |\n block node\n- - one # Compact\n  - two # sequence\n")))
   )
+
+(test block-mappings
+  (is (equal `(:mapping ("block mapping" . (:mapping ("key" . "value"))))
+	     (yaclyaml-parse 'l+block-mapping #?"block mapping:\n key: value\n")))
+  (is (equal `(:mapping ("explicit key" . ""))
+	     (yaclyaml-parse 'l+block-mapping #?"? explicit key # Empty value\n")))
+  (is (equal `(:mapping ("block key" . "flow value"))
+	     (yaclyaml-parse 'l+block-mapping #?"? |\n  block key\n: flow value\n")))
   
+  )
 
 ;; (test flow-nodes
 ;;   (is (equal '((:mapping ("YAML" . "separate"))) (yaclyaml-parse 'ns-flow-node #?"!!str \"a\"")))

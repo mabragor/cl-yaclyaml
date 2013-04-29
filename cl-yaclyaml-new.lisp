@@ -4,7 +4,12 @@
 ;;; Hopefully, this will allow me to finish faster, than with
 ;;; Lisp-reader-like approach.
 
-(define-esrap-env yaclyaml :default-context :block-out)
+(define-esrap-env yaclyaml)
+
+(register-yaclyamlcontext defparameter n -1 "Current indent level.")
+(define-context-rules indent-style autodetect determined)
+(define-context-rules (context :nodefine)
+    block-out block-in flow-out flow-in block-key flow-key)
 
 ;;; Indicator characters
 
@@ -14,36 +19,6 @@
 		      `(define-rule ,(car x) ,(cadr x)
 			 (:constant nil)))
 		    clauses)))
-
-(define-rule foo "foo"
-  (:constant "foo"))
-
-(define-rule goo "foo"
-  (:constant "foo"))
-
-(defmacro define-context-rules (context-var &rest contexts)
-  "Define rules, that consume nothing, but pass only if CONTEXT-VAR is equal to
-something particular.
-For cases, when you do not want to keep a bunch of sub-rules with different :WHEN's around."
-  (macrolet ((frob ()
-	       ``(progn ,(if (not (eql perk :nodefine))
-			     `(defparameter ,context-var ,(sb-int:keywordicate (car contexts))))
-			,@(mapcar (lambda (context-name)
-				    `(progn
-				       (defun ,(sb-int:symbolicate context-name "-CONTEXT-P")
-					   (x)
-					 (declare (ignore x))
-					 (eql ,context-var ,(sb-int:keywordicate context-name)))
-				       (define-rule ,(sb-int:symbolicate context-name
-									 "-CONTEXT")
-					   (,(sb-int:symbolicate context-name "-CONTEXT-P") "")
-					 (:constant nil))))
-				  contexts))))
-    (if (consp context-var)
-	(destructuring-bind (context-var perk) context-var
-	  (frob))
-	(let (perk)
-	  (frob)))))
 
 (defmacro define-context-forcing-rule (context-name forsee-name &optional (expression forsee-name))
   "Define a rule, that enforces a context, when attempting to parse the EXPRESSION."
@@ -206,10 +181,6 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 
 ;; Indentation
 
-(defparameter n -1 "Current indent level.")
-(define-context-rules indent-style autodetect determined)
-(define-context-rules (context :nodefine)
-    block-out block-in flow-out flow-in block-key flow-key)
 
 (define-rule s-indent-<n (cond (autodetect-context (* s-space))
 			       (t (* (- n 1) s-space)))
@@ -595,7 +566,7 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
   (:wrap-around (let ((indent-style :autodetect))
 		  (call-parser))))
 
-(define-rule detect-block-mapping (wrap "" (& s-indent-=n))
+(define-rule detect-block-mapping (wrap "" (& (first (and s-indent-=n ns-char))))
   (:wrap-around (let ((indent-style :autodetect))
 		  (call-parser))))
 
@@ -622,16 +593,27 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 		`(,first ,. rest)))
 
 (define-rule l+block-mapping (wrap detect-block-mapping
-				   (+ (and s-indent-=n ns-l-block-map-entry)))
+				   (+ (cond (s-indent-=n ns-l-block-map-entry))))
   (:wrap-around (let ((n wrapper)
 		      (indent-style :determined))
-		  (call-parser))))
+		  (call-parser)))
+  (:lambda (lst)
+    `(:mapping ,.lst)))
 
 (define-rule ns-l-block-map-entry (or c-l-block-map-explicit-entry
-				      ns-l-block-map-implicit-entry))
-(define-rule c-l-block-map-explicit-entry (and c-l-block-map-explicit-key
-					       (or l-block-map-explicit-value
-						   e-node)))
+				      ns-l-block-map-implicit-entry)
+  (:destructure (key value)
+		`(,key . ,value)))
+(define-rule c-l-block-map-explicit-entry (wrap c-l-block-map-explicit-key
+						(or l-block-map-explicit-value
+						    e-node))
+  (:wrap-around (format t "cache: ~a~%wrapper: ~a~%" (display-cache esrap::*cache*) wrapper)
+		(call-parser)))
+
+;; (defun display-cache (cache)
+;;   (iter (for (key value) in-hashtable cache)
+;; 	(destructuring-bind (
+
 (define-rule c-l-block-map-explicit-key (wrap ""
 					      (cond (#\? s-l+block-indented)))
   (:wrap-around (let ((context :block-out))
@@ -651,12 +633,14 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 		  (call-parser))))
 (define-rule c-l-block-map-implicit-value (wrap #\:
 						(or s-l+block-node
-						    (and e-node s-l-comments)))
+						    (first (and e-node s-l-comments))))
   (:wrap-around (let ((context :block-out))
 		  (call-parser))))
   
 (define-rule ns-l-compact-mapping (and ns-l-block-map-entry
-				       (* (and s-indent-=n ns-l-block-map-entry))))
+				       (* (cond (s-indent-=n ns-l-block-map-entry))))
+  (:destructure (first rest)
+		`(,first ,.rest)))
 
 ;; block nodes
 
@@ -669,8 +653,19 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
 
 (define-rule s-l+block-in-block (or s-l+block-scalar s-l+block-collection))
 
-(define-rule s-l+block-scalar (and block-node-properties
-				   c-l-block-scalar))
+(define-rule s-separate-n+1 (wrap "" s-separate)
+  (:wrap-around (let ((n (1+ n)))
+		  (call-parser))))
+
+(define-rule s-l+block-scalar (and s-separate-n+1 
+				   block-node-properties
+				   c-l-block-scalar)
+  (:destructure (sep props content)
+		(declare (ignore sep))
+		(if props
+		    `(:properties ,(car props) :content ,content)
+		    content)))
+
 
 (define-rule block-node-properties (wrap ""
 					 (? (and s-separate c-ns-properties)))
@@ -682,10 +677,14 @@ For cases, when you do not want to keep a bunch of sub-rules with different :WHE
       (1- n)
       n))
 
-(define-rule s-l+block-collection (and block-node-properties
-				       s-l-comments
+(define-rule s-l+block-collection (and (first (and block-node-properties s-l-comments))
 				       (or l+block-sequence-seq-spaces
-					   l+block-mapping)))
+					   l+block-mapping))
+  (:destructure (props content)
+  		(if props
+		    `(:properties ,(car props) :content ,content)
+		    content)))
+
 
 (define-rule l+block-sequence-seq-spaces (wrap "" l+block-sequence)
   (:wrap-around (let ((n (seq-spaces n)))
