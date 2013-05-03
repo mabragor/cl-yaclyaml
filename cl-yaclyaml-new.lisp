@@ -6,10 +6,12 @@
 
 (define-esrap-env yaclyaml)
 
-(register-yaclyamlcontext defparameter n -1 "Current indent level.")
-(define-context-rules indent-style autodetect determined)
-(define-context-rules (context :nodefine)
-    block-out block-in flow-out flow-in block-key flow-key)
+(register-yaclyaml-context n nil)
+(setf n -1)
+(register-yaclyaml-context indent-style autodetect determined)
+(register-yaclyaml-context context block-out block-in flow-out flow-in block-key flow-key)
+(register-yaclyaml-context block-scalar-chomping clip keep strip)
+(register-yaclyaml-context block-scalar-style literal folded)
 
 ;;; Indicator characters
 
@@ -182,14 +184,14 @@
 ;; Indentation
 
 
-(define-rule s-indent-<n (cond (autodetect-context (* s-space))
-			       (t (* (- n 1) s-space)))
+(define-rule s-indent-<n (cond (autodetect-indent-style (* s-space))
+			       (determined-indent-style (* (- n 1) s-space)))
   (:lambda (x) (length x)))
-(define-rule s-indent-<=n (cond (autodetect-context (* s-space))
-				(t (* n s-space)))
+(define-rule s-indent-<=n (cond (autodetect-indent-style (* s-space))
+				(determined-indent-style (* n s-space)))
   (:lambda (x) (length x)))
-(define-rule s-indent-=n (cond (autodetect-context (* n nil s-space))
-			       (t (* n n s-space)))
+(define-rule s-indent-=n (cond (autodetect-indent-style (* (+ n 1) nil s-space))
+			       (determined-indent-style (* n n s-space)))
   (:lambda (x) (length x)))
 
 (define-rule s-separate-in-line (+ s-white)) ; TODO or /* Start line */
@@ -312,20 +314,27 @@
   
 ;;; Node properties
 
-(define-rule c-ns-properties (or (and c-ns-tag-property (? (and s-separate c-ns-anchor-property)))
-				 (and c-ns-anchor-property (? (and s-separate c-ns-tag-property)))))
+(define-rule c-ns-properties (or (and c-ns-tag-property (? (cond (s-separate c-ns-anchor-property))))
+				 (and c-ns-anchor-property (? (cond (s-separate c-ns-tag-property)))))
+  (:lambda (lst)
+    `(:properties ,@(remove-if-not #'identity lst))))
 
 (define-rule c-ns-tag-property (or c-verbatim-tag c-ns-shorthand-tag c-non-specific-tag))
-(define-rule c-verbatim-tag (and "!<" (+ ns-uri-char) ">"))
-(define-rule c-ns-shorthand-tag (and c-tag-handle (+ ns-tag-char)))
-(define-rule c-non-specific-tag "!")
+(define-rule c-verbatim-tag (cond ("!<" (first (and (+ ns-uri-char) ">"))))
+  (:lambda (x) `(:verbatim-tag . ,(text x))))
+		
+(define-rule c-ns-shorthand-tag (cond (c-tag-handle (+ ns-tag-char)))
+  (:lambda (x) `(:shorthand-tag . ,(text x))))
+(define-rule c-non-specific-tag "!" (:lambda (x) (declare (ignore x)) (:non-specific-tag)))
 
-(define-rule c-ns-anchor-property (and #\& ns-anchor-name))
+(define-rule c-ns-anchor-property (cond (#\& ns-anchor-name))
+  (:lambda (x) `(:anchor . ,(text x))))
 (define-rule ns-anchor-char (and (! c-flow-indicator) ns-char))
 (define-rule ns-anchor-name (+ ns-anchor-char))
 
 ;;; alias nodes
-(define-rule c-ns-alias-node (and #\* ns-anchor-name))
+(define-rule c-ns-alias-node (cond (#\* ns-anchor-name))
+  (:lambda (x) `(:alias . ,(text x))))
 
 ;;; empty node
 (define-rule e-scalar "")
@@ -427,9 +436,6 @@
   (iter (for (key val) in-hashtable hash)
 	(collect `(,key . ,val))))
 
-(define-context-rules block-scalar-chomping
-   clip keep strip)
-
 (define-rule b-chomped-last b-break
   (:lambda (x)
     (declare (ignore x))
@@ -442,8 +448,9 @@
   (:constant nil))
 (define-rule b-as-line-feed b-break)
 
-(define-rule l-chomped-empty (cond ((or strip-context clip-context) l-strip-empty)
-				   (keep-context l-keep-empty)))
+(define-rule l-chomped-empty (cond ((or strip-block-scalar-chomping
+					clip-block-scalar-chomping) l-strip-empty)
+				   (keep-block-scalar-chomping l-keep-empty)))
 (define-rule l-strip-empty (and (* (and s-indent-<=n b-non-content))
 				(? l-trail-comments))
   (:constant ""))
@@ -459,8 +466,6 @@
 					    b-chomped-last))
 				    l-chomped-empty)
   (:text t))
-
-(define-context-rules block-scalar-style literal folded)
 
 (let ((chomping-map '(("+" . :keep) ("-" . :strip) ("" . :clip)))
       (style-map '(("|" . :literal) (">" . :folded))))
@@ -482,10 +487,10 @@
 	       (call-parser))))))
     (:text t)))
 
-(define-rule block-scalar-content (wrap (cond (autodetect-context detect-indent)
+(define-rule block-scalar-content (wrap (cond (autodetect-indent-style detect-indent)
 					      (t ""))
-					(cond (literal-context l-literal-content)
-					      (folded-context l-folded-content)))
+					(cond (literal-block-scalar-style l-literal-content)
+					      (folded-block-scalar-style l-folded-content)))
   (:wrap-around
    (if (equal wrapper "")
        (call-parser)
@@ -577,18 +582,14 @@
 				    s-l+block-node
 				    (first (and e-node s-l-comments))))
 
-(define-rule compact-block-node (wrap ""
-				      %compact-block-node)
-  (:wrap-around (let ((indent-style :autodetect))
-		  (call-parser))))
-(define-rule %compact-block-node (wrap s-indent-=n
-				       (or ns-l-compact-sequence ns-l-compact-mapping))
-  (:wrap-around (let ((n (+ n 1 wrapper))
+(define-rule compact-block-node (wrap (* 1 nil s-space)
+				      (or ns-l-compact-sequence ns-l-compact-mapping))
+  (:wrap-around (let ((n (+ n 1 (length wrapper)))
 		      (indent-style :determined))
 		  (call-parser))))
 		  
 (define-rule ns-l-compact-sequence (and c-l-block-seq-entry
-					(* (cond (s-indent c-l-block-seq-entry))))
+					(* (cond (s-indent-=n c-l-block-seq-entry))))
   (:destructure (first rest)
 		`(,first ,. rest)))
 
@@ -604,15 +605,10 @@
 				      ns-l-block-map-implicit-entry)
   (:destructure (key value)
 		`(,key . ,value)))
-(define-rule c-l-block-map-explicit-entry (wrap c-l-block-map-explicit-key
-						(or l-block-map-explicit-value
-						    e-node))
-  (:wrap-around (format t "cache: ~a~%wrapper: ~a~%" (display-cache esrap::*cache*) wrapper)
-		(call-parser)))
+(define-rule c-l-block-map-explicit-entry (and c-l-block-map-explicit-key
+					       (or l-block-map-explicit-value
+						   e-node)))
 
-;; (defun display-cache (cache)
-;;   (iter (for (key value) in-hashtable cache)
-;; 	(destructuring-bind (
 
 (define-rule c-l-block-map-explicit-key (wrap ""
 					      (cond (#\? s-l+block-indented)))
@@ -640,7 +636,7 @@
 (define-rule ns-l-compact-mapping (and ns-l-block-map-entry
 				       (* (cond (s-indent-=n ns-l-block-map-entry))))
   (:destructure (first rest)
-		`(,first ,.rest)))
+		`(:mapping ,first ,.rest)))
 
 ;; block nodes
 
@@ -663,7 +659,7 @@
   (:destructure (sep props content)
 		(declare (ignore sep))
 		(if props
-		    `(:properties ,(car props) :content ,content)
+		    `(,(car props) (:content . ,content))
 		    content)))
 
 
@@ -677,12 +673,14 @@
       (1- n)
       n))
 
-(define-rule s-l+block-collection (and (first (and block-node-properties s-l-comments))
+(define-rule s-l+block-collection (and block-node-properties
+				       s-l-comments
 				       (or l+block-sequence-seq-spaces
 					   l+block-mapping))
-  (:destructure (props content)
+  (:destructure (props comments content)
+		(declare (ignore comments))
   		(if props
-		    `(:properties ,(car props) :content ,content)
+		    `(,(car props) (:content . ,content))
 		    content)))
 
 
@@ -796,20 +794,26 @@
 
 (define-rule ns-flow-yaml-node (or c-ns-alias-node
 				   ns-flow-yaml-content
-				   (and c-ns-properties
-					(or (and s-separate ns-flow-yaml-content)
-					    e-scalar))))
+				   ns-flow-yaml-properties-node))
+(define-rule ns-flow-yaml-properties-node (and c-ns-properties
+					       (or (cond (s-separate ns-flow-yaml-content))
+						   e-scalar))
+  (:destructure (props content)
+		`(,props (:content . ,content))))
 
 (define-rule c-flow-json-node (and (? (and c-ns-properties s-separate))
 				   c-flow-json-content)
   (:destructure (props content)
 		(if props
-		    `(:properties ,(car props) :content ,content)
+		    `(,(car props) (:content . ,content))
 		    content)))
 
 (define-rule ns-flow-node (or c-ns-alias-node
 			      ns-flow-content
-			      (and c-ns-properties
-				   (or (and s-separate ns-flow-content)
-				       e-scalar))))
+			      ns-flow-properties-node))
+(define-rule ns-flow-properties-node (and c-ns-properties
+					  (cond (s-separate ns-flow-content)
+						(t e-scalar)))
+  (:destructure (props content)
+		`(,props (:content . ,content))))
 

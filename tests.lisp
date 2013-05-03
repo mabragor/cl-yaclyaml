@@ -154,9 +154,12 @@ omitted value:,\n: omitted key,\n}")))
 
 (test block-sequences
   (is (equal `("foo" "bar" "baz") (yaclyaml-parse 'l+block-sequence #?"- foo\n- bar\n- baz\n")))
-  ;; (is (equal `("" ,#?"block node\n" ("one" "two"))
-  ;; 	     (yaclyaml-parse 'l+block-sequence
-  ;; 			     #?"- # Empty\n- |\n block node\n- - one # Compact\n  - two # sequence\n")))
+  (is (equal `((:mapping ("one" . "two"))) (yaclyaml-parse 'l+block-sequence #?"- one: two # compact mapping\n")))
+  (is (equal `(:mapping ("block sequence" . ("one" (:mapping ("two" . "three")))))
+  	     (yaclyaml-parse 'l+block-mapping #?"block sequence:\n  - one\n  - two : three\n")))
+  (is (equal `("" ,#?"block node\n" ("one" "two") (:mapping ("one" . "two")))
+  	     (yaclyaml-parse 'l+block-sequence
+  			     #?"- # Empty\n- |\n block node\n- - one # Compact\n  - two # sequence\n- one: two\n")))
   )
 
 (test block-mappings
@@ -164,10 +167,25 @@ omitted value:,\n: omitted key,\n}")))
 	     (yaclyaml-parse 'l+block-mapping #?"block mapping:\n key: value\n")))
   (is (equal `(:mapping ("explicit key" . ""))
 	     (yaclyaml-parse 'l+block-mapping #?"? explicit key # Empty value\n")))
-  (is (equal `(:mapping ("block key" . "flow value"))
+  (is (equal `(:mapping (,#?"block key\n" . "flow value"))
 	     (yaclyaml-parse 'l+block-mapping #?"? |\n  block key\n: flow value\n")))
-  
+  (is (equal `(:mapping (,#?"block key\n" . ("one" "two")))
+	     (yaclyaml-parse 'l+block-mapping #?"? |\n  block key\n: - one # Explicit compact\n  - two # block value\n")))
+  (is (equal `(:mapping ("plain key" . "in-line value") ("" . "") ("quoted key" . ("entry")))
+	     (yaclyaml-parse 'l+block-mapping #?"plain key: in-line value\n: # Both empty\n\"quoted key\":\n- entry\n")))
   )
+
+(test compact-block-mappings
+  (is (equal `((:mapping ("sun" . "yellow")) (:mapping ((:mapping ("earth" . "blue")) . (:mapping ("moon" . "white")))))
+	     (yaclyaml-parse 'l+block-sequence #?"- sun: yellow\n- ? earth: blue\n  : moon: white\n"))))
+
+(test node-properties
+  (is (equal `(:mapping (((:properties (:shorthand-tag . "str") (:anchor . "a1")) (:content . "foo"))
+			 . ((:properties (:shorthand-tag . "str")) (:content . "bar")))
+			(((:properties (:anchor . "a2")) (:content . "baz"))
+			 . (:alias . "a1")))
+	     (yaclyaml-parse 'l+block-mapping #?"!!str &a1 \"foo\":\n  !!str bar\n&a2 baz : *a1\n"))))
+  
 
 ;; (test flow-nodes
 ;;   (is (equal '((:mapping ("YAML" . "separate"))) (yaclyaml-parse 'ns-flow-node #?"!!str \"a\"")))

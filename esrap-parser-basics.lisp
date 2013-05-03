@@ -19,7 +19,7 @@
 		     (defrule ,symbol ,expression ,@options))))
 	  (defmacro ,(sb-int:symbolicate "REGISTER-" symbol "-CONTEXT")
 	      (context-var &rest plausible-contexts)
-	    `(progn (defparameter ,context-var ,(sb-int:keywordicate (car contexts)))
+	    `(progn (defparameter ,context-var ,(sb-int:keywordicate (format nil "~a" (car plausible-contexts))))
 		    ,@(mapcar (lambda (context-name)
 				(let ((pred-name (sb-int:symbolicate context-name
 								     "-"
@@ -32,10 +32,10 @@
 				     (defun ,pred-name (x)
 				       (declare (ignore x))
 				       (equal ,context-var ,(sb-int:keywordicate context-name)))
-				     (define-rule ,rule-name-(,pred-name "")
+				     (,(sb-int:symbolicate 'define-rule) ,rule-name (,pred-name "")
 				       (:constant nil)))))
-			      plausible-contexts)
-		    (register-context ,context-var)))
+			      (mapcar (lambda (x) (format nil "~a" x)) plausible-contexts))
+		    (push ',context-var ,',(sb-int:symbolicate symbol "-CONTEXTS"))))
 	  (defmacro ,(sb-int:symbolicate symbol "-PARSE")
 	      (expression text &key (start nil start-p)
 				 (end nil end-p)
