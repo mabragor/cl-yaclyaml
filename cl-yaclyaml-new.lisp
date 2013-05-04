@@ -352,7 +352,9 @@
 
 ;;; empty node
 (define-rule e-scalar "" (:constant :empty))
-(define-rule e-node e-scalar)
+(define-rule e-node e-scalar
+  (:lambda (x)
+    `((:properties (:tag . :non-specific)) (:content . ,x))))
     
 ;;; double-quoted-scalars
 
@@ -600,7 +602,9 @@
 				      (or ns-l-compact-sequence ns-l-compact-mapping))
   (:wrap-around (let ((n (+ n 1 (length wrapper)))
 		      (indent-style :determined))
-		  (call-parser))))
+		  (call-parser)))
+  (:lambda (x)
+    `((:properties (:tag . :non-specific)) (:content . ,x))))
 		  
 (define-rule ns-l-compact-sequence (and c-l-block-seq-entry
 					(* (cond (s-indent-=n c-l-block-seq-entry))))
@@ -676,17 +680,11 @@
 				   c-l-block-scalar)
   (:destructure (sep props content)
 		(declare (ignore sep))
-		(if props
-		    (progn ;; (format t "~a~%" props)
-			   (let ((it (assoc :tag (cadr props))))
-			     (if (and it (eql (cdr it) :vanilla))
-				 (setf (cdr it) vanilla-scalar-tag)))
-			   `(,(cadr props) (:content . ,content)))
-		    content)))
-
+		(crunch-tag-into-properties props vanilla-scalar-tag vanilla-scalar-tag)
+		`(,props (:content . ,content))))
 
 (define-rule block-node-properties (wrap ""
-					 (? (and s-separate c-ns-properties)))
+					 (? (cond (s-separate c-ns-properties))))
   (:wrap-around (let ((n (1+ n)))
 		  (call-parser))))
 
@@ -701,14 +699,10 @@
 					   l+block-mapping))
   (:destructure (props comments content)
 		(declare (ignore comments))
-  		(if props
-		    (progn (let ((it (assoc :tag (car props))))
-			     (if (and it (eql (cdr it) :vanilla))
-				 (setf (cdr it) (case (car content)
-						  (:mapping vanilla-mapping-tag)
-						  (t vanilla-sequence-tag)))))
-			   `(,(car props) (:content . ,content)))
-		    content)))
+		(crunch-tag-into-properties props :non-specific (case (car content)
+								  (:mapping vanilla-mapping-tag)
+								  (t vanilla-sequence-tag)))
+		`(,props (:content . ,content))))
 
 
 (define-rule l+block-sequence-seq-spaces (wrap "" l+block-sequence)
@@ -817,37 +811,79 @@
 
 (define-rule ns-flow-yaml-content ns-plain)
 (define-rule c-flow-json-content (or c-flow-sequence c-flow-mapping c-single-quoted c-double-quoted))
-(define-rule ns-flow-content (or ns-flow-yaml-content c-flow-json-content))
+(define-rule ns-flow-content (or (tag :yaml ns-flow-yaml-content)
+				 (tag :json c-flow-json-content)))
+
+(defmacro! crunch-tag-into-properties (props-var crunch-if-absent crunch-if-vanilla)
+  `(if ,props-var
+       (let ((it (assoc :tag (cdr ,props-var))))
+	 (if it
+	     (if (equal (cdr it) :vanilla)
+		 (setf (cdr it) ,crunch-if-vanilla))
+	     (setf (cdr ,props-var) `((:tag . ,,crunch-if-absent) ,.(cdr ,props-var)))))
+       (setf ,props-var `(:properties (:tag . ,,crunch-if-absent)))))
+
+(defmacro with-ensured-properties-not-alias (var &body body)
+  `(if (alias-p ,var)
+       ,var
+       (let ((,var (cond ((property-node-p ,var) ,var)
+			 (t `(,(list :properties) (:content . ,,var))))))
+	 ,@body)))
 
 (define-rule ns-flow-yaml-node (or c-ns-alias-node
 				   ns-flow-yaml-content
-				   ns-flow-yaml-properties-node))
+				   ns-flow-yaml-properties-node)
+  (:lambda (x)
+    (with-ensured-properties-not-alias x
+      (let ((props (assoc :properties x))
+	    (content (cdr (assoc :content x))))
+	(crunch-tag-into-properties props :non-specific vanilla-scalar-tag)
+	`(,props (:content . ,content))))))
+				    
 (define-rule ns-flow-yaml-properties-node (and c-ns-properties
 					       (or (cond (s-separate ns-flow-yaml-content))
 						   e-scalar))
   (:destructure (props content)
 		`(,props (:content . ,content))))
 
-(define-rule c-flow-json-node (and (? (and c-ns-properties s-separate))
+(define-rule c-flow-json-node (and (? (first (and c-ns-properties s-separate)))
 				   c-flow-json-content)
   (:destructure (props content)
-		(if props
-		    `(,(car props) (:content . ,content))
-		    content)))
+		(if (atom content)
+		    (crunch-tag-into-properties props vanilla-scalar-tag vanilla-scalar-tag)
+		    (crunch-tag-into-properties props :non-specific (if (equal (car content) :mapping)
+									vanilla-mapping-tag
+									vanilla-sequence-tag)))
+		`(,props (:content . ,content))))
 
 (define-rule ns-flow-node (or c-ns-alias-node
 			      ns-flow-content
-			      ns-flow-properties-node))
+			      ns-flow-properties-node)
+  (:lambda (x)
+    ;; (format t "first: ~a~%" x)
+    (with-ensured-properties-not-alias x
+      ;; (format t "~a~%" x)
+      (let ((props (assoc :properties x))
+	    (content (cdr (assoc :content x))))
+	(destructuring-bind (content-type content) content
+	  ;; (format t "~a ~a~%" content-type content)
+	  ;; (format t "~a~%" props)
+	  (crunch-tag-into-properties props
+				      (cond ((eql content-type :yaml) :non-specific)
+					    ((eql content-type :json)
+					     (cond ((atom content) vanilla-scalar-tag)
+						   ((eql (car content) :mapping) :non-specific)
+						   (t :non-specific))))
+				      (cond ((atom content) vanilla-scalar-tag)
+					    ((eql (car content) :mapping) vanilla-mapping-tag)
+					    (t vanilla-sequence-tag)))
+	  ;; (format t "~a~%" props)
+	  `(,props (:content . ,content)))))))
+
 (define-rule ns-flow-properties-node (and c-ns-properties
 					  (cond (s-separate ns-flow-content)
-						(t e-scalar)))
+						(t (tag :yaml e-scalar))))
   (:destructure (props content)
-		;; (format t "~a~%" props)
-		(let ((it (assoc :tag (cdr props))))
-		  (if (and it (eql (cdr it) :vanilla))
-		      (setf (cdr it) (cond ((atom content) vanilla-scalar-tag)
-					   ((eql (car content) :mapping) vanilla-mapping-tag)
-					   (t vanilla-sequence-tag)))))
 		`(,props (:content . ,content))))
 
 

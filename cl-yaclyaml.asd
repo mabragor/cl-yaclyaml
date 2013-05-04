@@ -6,7 +6,7 @@
 (in-package cl-yaclyaml-system)
 
 (defsystem #:cl-yaclyaml
-  :version "0.1"
+  :version "0.2"
   :serial t
   :description "Yet Another Common Lisp YaML processor."
   :author "Alexander Popolitov <popolit@itep.ru>"
