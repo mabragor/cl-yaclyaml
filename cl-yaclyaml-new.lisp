@@ -8,7 +8,7 @@
 
 (register-yaclyaml-context n nil)
 (setf n -1)
-(register-yaclyaml-context indent-style autodetect determined)
+(register-yaclyaml-context indent-style determined autodetect)
 (register-yaclyaml-context context block-out block-in flow-out flow-in block-key flow-key)
 (register-yaclyaml-context block-scalar-chomping clip keep strip)
 (register-yaclyaml-context block-scalar-style literal folded)
@@ -194,7 +194,9 @@
 			       (determined-indent-style (* n n s-space)))
   (:lambda (x) (length x)))
 
-(define-rule s-separate-in-line (+ s-white)) ; TODO or /* Start line */
+(define-rule start-of-line (or (<- sof) (<- b-char)))
+
+(define-rule s-separate-in-line (or (+ s-white) start-of-line))
 
 (define-rule s-block-line-prefix s-indent-=n)
 (define-rule s-flow-line-prefix (and s-indent-=n (? s-separate-in-line)))
@@ -212,8 +214,11 @@
   (:constant " "))
 
 (define-rule b-l-folded (or b-l-trimmed b-as-space))
+(define-context-forcing-rule flow-in b-l-folded)
 
-(define-rule s-flow-folded (and (? s-separate-in-line) b-l-folded s-flow-line-prefix)
+(define-rule s-flow-folded (and (? s-separate-in-line)
+				flow-in-b-l-folded
+				s-flow-line-prefix)
   (:destructure (sep0 content pref0)
 		(declare (ignore sep0 pref0))
 		content))
@@ -223,7 +228,7 @@
 (define-rule c-nb-comment-text (and #\# (* nb-char))
   (:constant nil))
 
-(define-rule b-comment b-char) ; TODO or end-of-file
+(define-rule b-comment (or (-> eof)  b-char))
 
 (define-rule s-b-comment (and (? (and s-separate-in-line (? c-nb-comment-text))) b-comment)
   (:constant nil))
@@ -231,7 +236,7 @@
 (define-rule l-comment (and s-separate-in-line (? c-nb-comment-text) b-comment)
   (:constant nil))
 
-(define-rule s-l-comments (and s-b-comment (* l-comment)) ; TODO or start-of-line
+(define-rule s-l-comments (and (or s-b-comment start-of-line) (* l-comment))
   (:constant nil))
 
 ;; separation lines
@@ -282,7 +287,14 @@
 		`(,(parse-integer (text major)) ,(parse-integer (text minor)))))
 
 ;; TAG directive
-(defparameter tag-handles (make-hash-table :test #'equal))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter tag-handles (make-hash-table :test #'equal))
+  (defparameter default-yaml-tagspace "tag:yaml.org,2002:")
+  (defparameter default-local-tagspace "!")
+  (setf (gethash :secondary-tag-handle tag-handles) default-yaml-tagspace
+	(gethash :primary-tag-handle tag-handles) default-local-tagspace))
+
+
 
 (define-rule ns-tag-directive (and "TAG" s-separate-in-line c-tag-handle
 				   s-separate-in-line ns-tag-prefix)
@@ -293,24 +305,19 @@
 		    (setf (gethash handle tag-handles) prefix))))
 (define-rule c-tag-handle (or c-named-tag-handle
 			      c-secondary-tag-handle
-			      c-primary-tag-handle) (:text t))
-(define-rule c-primary-tag-handle #\!)
-(define-rule c-secondary-tag-handle "!!")
-(define-rule c-named-tag-handle (and #\! (+ ns-word-char) #\!))
+			      c-primary-tag-handle))
+(define-rule c-primary-tag-handle #\! (:constant :primary-tag-handle))
+(define-rule c-secondary-tag-handle "!!" (:constant :secondary-tag-handle))
+(define-rule c-named-tag-handle (and #\! (+ ns-word-char) #\!)
+  (:destructure (start meat end)
+		(declare (ignore start end))
+		`(:named-tag-handle ,(text meat))))
 
 (define-rule ns-tag-prefix (or c-ns-local-tag-prefix
-			       ns-global-tag-prefix))
-(define-rule c-ns-local-tag-prefix (and #\! (* ns-uri-char))
-  (:destructure (start name)
-		(declare (ignore start))
-		(make-instance 'tag-prefix :name (text name) :local t)))
-(define-rule ns-global-tag-prefix (and ns-tag-char (* ns-uri-char))
-  (:lambda (lst)
-    (make-instance 'tag-prefix :name (text (flatten name)))))
-(defclass tag-prefix ()
-  ((name :initarg :name :initform nil :accessor tag-name)
-   (local :initarg :local :initform nil :accessor tag-local-p)))
-
+			       ns-global-tag-prefix)
+  (:text t))
+(define-rule c-ns-local-tag-prefix (and #\! (* ns-uri-char)))
+(define-rule ns-global-tag-prefix (and ns-tag-char (* ns-uri-char)))
   
 ;;; Node properties
 
@@ -321,11 +328,18 @@
 
 (define-rule c-ns-tag-property (or c-verbatim-tag c-ns-shorthand-tag c-non-specific-tag))
 (define-rule c-verbatim-tag (cond ("!<" (first (and (+ ns-uri-char) ">"))))
-  (:lambda (x) `(:verbatim-tag . ,(text x))))
+  (:lambda (x) `(:tag . ,(text x))))
+
+(defun resolve-handle (handle)
+  (or (gethash handle tag-handles)
+      (error "Unknown handle ~a. Did you forget to declare it?" handle)))
 		
-(define-rule c-ns-shorthand-tag (cond (c-tag-handle (+ ns-tag-char)))
-  (:lambda (x) `(:shorthand-tag . ,(text x))))
-(define-rule c-non-specific-tag "!" (:lambda (x) (declare (ignore x)) (:non-specific-tag)))
+(define-rule c-ns-shorthand-tag (and c-tag-handle (+ ns-tag-char))
+  (:destructure (handle meat)
+		`(:tag . ,(text (resolve-handle handle) meat))))
+
+(define-rule c-non-specific-tag "!"
+  (:lambda (x) (declare (ignore x)) `(:tag . :vanilla)))
 
 (define-rule c-ns-anchor-property (cond (#\& ns-anchor-name))
   (:lambda (x) `(:anchor . ,(text x))))
@@ -653,13 +667,21 @@
   (:wrap-around (let ((n (1+ n)))
 		  (call-parser))))
 
+(defparameter vanilla-scalar-tag "tag:yaml.org,2002:str")
+(defparameter vanilla-mapping-tag "tag:yaml.org,2002:map")
+(defparameter vanilla-sequence-tag "tag:yaml.org,2002:seq")
+
 (define-rule s-l+block-scalar (and s-separate-n+1 
 				   block-node-properties
 				   c-l-block-scalar)
   (:destructure (sep props content)
 		(declare (ignore sep))
 		(if props
-		    `(,(car props) (:content . ,content))
+		    (progn ;; (format t "~a~%" props)
+			   (let ((it (assoc :tag (cadr props))))
+			     (if (and it (eql (cdr it) :vanilla))
+				 (setf (cdr it) vanilla-scalar-tag)))
+			   `(,(cadr props) (:content . ,content)))
 		    content)))
 
 
@@ -680,7 +702,12 @@
   (:destructure (props comments content)
 		(declare (ignore comments))
   		(if props
-		    `(,(car props) (:content . ,content))
+		    (progn (let ((it (assoc :tag (car props))))
+			     (if (and it (eql (cdr it) :vanilla))
+				 (setf (cdr it) (case (car content)
+						  (:mapping vanilla-mapping-tag)
+						  (t vanilla-sequence-tag)))))
+			   `(,(car props) (:content . ,content)))
 		    content)))
 
 
@@ -815,5 +842,107 @@
 					  (cond (s-separate ns-flow-content)
 						(t e-scalar)))
   (:destructure (props content)
+		;; (format t "~a~%" props)
+		(let ((it (assoc :tag (cdr props))))
+		  (if (and it (eql (cdr it) :vanilla))
+		      (setf (cdr it) (cond ((atom content) vanilla-scalar-tag)
+					   ((eql (car content) :mapping) vanilla-mapping-tag)
+					   (t vanilla-sequence-tag)))))
 		`(,props (:content . ,content))))
+
+
+;;; YaML documents
+
+;; FIXME: correct definition of byte-order-mark
+(define-rule c-byte-order-mark (and #\UEFBB #\INVERTED_QUESTION_MARK)
+  (:constant :utf8-bom))
+
+(define-rule l-document-prefix (and (? c-byte-order-mark) (* l-comment)))
+(define-rule c-directives-end (* 3 3 #\-))
+(define-rule c-document-end (* 3 3 #\.))
+(define-rule l-document-suffix (and c-document-end s-l-comments))
+
+(define-rule c-forbidden (and start-of-line
+			      (or c-directives-end c-document-end)
+			      (or b-char s-white (-> eof))))
+
+(define-rule l-bare-document (* (and (! c-forbidden) (and (* nb-char) (? b-break))))
+  (:lambda (text)
+    (let ((n -1)
+	  (indent-style :determined)
+	  (context :block-in))
+      `(:document ,(yaclyaml-parse 's-l+block-node (text text))))))
+
+(define-rule l-explicit-document (cond (c-directives-end (or l-bare-document
+							     (first (and e-node s-l-comments)))))
+  (:lambda (x) `(:document ,(if (and (consp x) (eql (car x) :document))
+				(cadr x)
+				x))))
+
+(define-rule l-directive-document (wrap "" %l-directive-document)
+  (:wrap-around (let ((yaml-version nil)
+		      (tag-handles (make-hash-table :test #'equal)))
+		  (setf (gethash :secondary-tag-handle tag-handles) default-yaml-tagspace
+			(gethash :primary-tag-handle tag-handles) default-local-tagspace)
+		  (call-parser))))
+
+(let (path)
+  (declare (special path))
+  (defun try-resolve (handle)
+    (multiple-value-bind (prefix position)
+	(yaclyaml-parse 'c-tag-handle handle :junk-allowed t)
+      ;; (format t "~a ~a ~a~%" handle prefix position)
+      (if prefix
+	  (let ((pos (position prefix path :test #'equal)))
+	    (if (and pos position)
+		(error "Loop in prefixes resolution: ~a~%" `(,@(subseq path pos) ,prefix))
+		(strcat (gethash (if (atom prefix)
+				     prefix
+				     (cadr prefix))
+				 tag-handles)
+			(if position
+			    (subseq handle position)))))
+	  handle)))
+
+  (defun compile-tag-handles ()
+    (iter (for (key . nil) in (hash->assoc tag-handles))
+	  (let ((path `(,key)))
+	    (declare (special path))
+	    (iter (while t)
+		  (let ((val (gethash key tag-handles)))
+		    (let ((try-val (try-resolve val)))
+		      (if (equal try-val val)
+			  (terminate)
+			  (setf (gethash key tag-handles) try-val
+				val try-val)))))))))
+
+(define-rule %l-directive-document (wrap (+ l-directive) l-explicit-document)
+  (:wrap-around (compile-tag-handles)
+		(call-parser)))
+
+
+(define-rule l-any-document (or l-directive-document
+				l-explicit-document
+				l-bare-document))
+
+(define-rule l-yaml-stream (and (cond ((* l-document-prefix) (? l-any-document)))
+				(* (cond ((and (+ l-document-suffix) (* l-document-prefix)) (? l-any-document))
+					 ((and (* l-document-prefix)) (? l-explicit-document)))))
+  (:destructure (first rest)
+		;; (format t "~a ~a~%" first rest)
+		`(,first ,.(if (and rest (car rest)) rest (list)))))
+
+
+;;; Composing representation graph
+
+(defparameter anchors (make-hash-table :test #'equal))
+
+;; (defun ncompose-representation-graph (representation-tree)
+;;   "Destructively composes representation graph from representation tree."
+;;   (let ((anchors (make-hash-table :test #'equal)))
+;;     (labels ((rec (node)
+;; 	       ...))
+      
+  
+
 

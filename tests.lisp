@@ -180,15 +180,60 @@ omitted value:,\n: omitted key,\n}")))
 	     (yaclyaml-parse 'l+block-sequence #?"- sun: yellow\n- ? earth: blue\n  : moon: white\n"))))
 
 (test node-properties
-  (is (equal `(:mapping (((:properties (:shorthand-tag . "str") (:anchor . "a1")) (:content . "foo"))
-			 . ((:properties (:shorthand-tag . "str")) (:content . "bar")))
+  (is (equal `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str") (:anchor . "a1")) (:content . "foo"))
+			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
 			(((:properties (:anchor . "a2")) (:content . "baz"))
 			 . (:alias . "a1")))
 	     (yaclyaml-parse 'l+block-mapping #?"!!str &a1 \"foo\":\n  !!str bar\n&a2 baz : *a1\n"))))
-  
 
+(test bare-document  
+  (is (equal '((:document "Bare document") 14)
+	     (multiple-value-list (yaclyaml-parse 'l-bare-document
+						  #?"Bare document\n...\n# No document\n...\n|\n%!PS-Adobe-2.0 # Not the first line\n" :junk-allowed t))))
+  ;; (is (equal '("Bare document" 14)
+  ;; 	     (multiple-value-list (yaclyaml-parse 'l-bare-document
+  ;; 						  #?"# No document\n...\n|\n%!PS-Adobe-2.0 # Not the first line\n" :junk-allowed t))))
+  (is (equal `(:document ,#?"%!PS-Adobe-2.0 # Not the first line\n")
+	     (yaclyaml-parse 'l-bare-document
+			     #?"|\n%!PS-Adobe-2.0 # Not the first line\n")))
+  )
+
+(test explicit-documents
+  (is (equal '(:document (:mapping ("matches %" . "20")))
+	     (yaclyaml-parse 'l-explicit-document
+			     #?"---\n{ matches\n% : 20 }\n")))
+  ;; (is (equal ""
+  ;; 	     (yaclyaml-parse 'l-explicit-document
+  ;; 			     #?"---\n# Empty\n")))
+  )
+
+(test directive-documents
+  (is (equal `(:document ,#?"%!PS-Adobe-2.0\n")
+	     (yaclyaml-parse 'l-directive-document
+			     #?"%YAML 1.2\n--- |\n%!PS-Adobe-2.0\n")))
+  ;; (is (equal #?""
+  ;; 	     (yaclyaml-parse 'l-directive-document
+  ;; 			     #?"%YAML 1.2\n---# Empty\n")))
+  )
+
+
+(test yaml-stream
+  (is (equal '((:document "Document") (:document "another") (:document (:mapping ("matches %" . "20"))))
+	     (yaclyaml-parse 'l-yaml-stream
+			     #?"Document\n---\nanother\n...\n%YAML 1.2\n---\nmatches %: 20")))
+  )
+  
+				  
 ;; (test flow-nodes
 ;;   (is (equal '((:mapping ("YAML" . "separate"))) (yaclyaml-parse 'ns-flow-node #?"!!str \"a\"")))
 ;;   )
   
 
+(test tag-shorthands
+  (is (equal '((:document (((:properties (:tag . "!local")) (:content . "foo"))
+			   ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar"))
+			   ((:properties (:tag . "tag:example.com,2000:app/tag%21")) (:content . "baz")))))
+	     (yaclyaml-parse 'l-yaml-stream #?"%TAG !e! tag:example.com,2000:app/\n---
+- !local foo\n- !!str bar\n- !e!tag%21 baz")))
+  )
+  
