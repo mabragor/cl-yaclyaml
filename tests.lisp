@@ -120,19 +120,20 @@
   (is (equal '(:mapping ("five" . "six") ("seven" . "eight"))
 	     (yaclyaml-parse 'c-flow-mapping
 			     #?"{five: six,seven : eight}")))
-  (is (equal '(:mapping ("explicit" . "entry") ("implicit" . "entry") ("" . ""))
+  (is (equal '(:mapping ("explicit" . "entry") ("implicit" . "entry") (:empty . :empty))
 	     (yaclyaml-parse 'c-flow-mapping
 			     #?"{\n? explicit: entry,\nimplicit: entry,\n?\n}")))
   (is (equal '(:mapping ("unquoted" . "separate")
-	       ("http://foo.com" . "")
-	       ("omitted value" . "")
-	       ("" . "omitted key"))
+	       ("http://foo.com" . :empty)
+	       ("omitted value" . :empty)
+	       (:empty . "omitted key")
+	       ("" . ""))
 	     (yaclyaml-parse 'c-flow-mapping
 			     #?"{\nunquoted : \"separate\",\nhttp://foo.com,
-omitted value:,\n: omitted key,\n}")))
+omitted value:,\n: omitted key,'':'',\n}")))
   (is (equal '(:mapping ("adjacent" . "value")
 	       ("readable" . "value")
-	       ("empty" . ""))
+	       ("empty" . :empty))
 	     (yaclyaml-parse 'c-flow-mapping
 			     #?"{\n\"adjacent\":value,\n\"readable\": value,\n\"empty\":\n}")))
   (is (equal '((:mapping ("foo" . "bar")))
@@ -144,7 +145,7 @@ omitted value:,\n: omitted key,\n}")))
   (is (equal '((:mapping ("YAML" . "separate")))
 	     (yaclyaml-parse 'c-flow-sequence
 			     #?"[ YAML : separate ]")))
-  (is (equal '((:mapping ("" . "empty key entry")))
+  (is (equal '((:mapping (:empty . "empty key entry")))
 	     (yaclyaml-parse 'c-flow-sequence
 			     #?"[ : empty key entry ]")))
   (is (equal '((:mapping ((:mapping ("JSON" . "like")) . "adjacent")))
@@ -157,7 +158,7 @@ omitted value:,\n: omitted key,\n}")))
   (is (equal `((:mapping ("one" . "two"))) (yaclyaml-parse 'l+block-sequence #?"- one: two # compact mapping\n")))
   (is (equal `(:mapping ("block sequence" . ("one" (:mapping ("two" . "three")))))
   	     (yaclyaml-parse 'l+block-mapping #?"block sequence:\n  - one\n  - two : three\n")))
-  (is (equal `("" ,#?"block node\n" ("one" "two") (:mapping ("one" . "two")))
+  (is (equal `(:empty ,#?"block node\n" ("one" "two") (:mapping ("one" . "two")))
   	     (yaclyaml-parse 'l+block-sequence
   			     #?"- # Empty\n- |\n block node\n- - one # Compact\n  - two # sequence\n- one: two\n")))
   )
@@ -165,13 +166,13 @@ omitted value:,\n: omitted key,\n}")))
 (test block-mappings
   (is (equal `(:mapping ("block mapping" . (:mapping ("key" . "value"))))
 	     (yaclyaml-parse 'l+block-mapping #?"block mapping:\n key: value\n")))
-  (is (equal `(:mapping ("explicit key" . ""))
+  (is (equal `(:mapping ("explicit key" . :empty))
 	     (yaclyaml-parse 'l+block-mapping #?"? explicit key # Empty value\n")))
   (is (equal `(:mapping (,#?"block key\n" . "flow value"))
 	     (yaclyaml-parse 'l+block-mapping #?"? |\n  block key\n: flow value\n")))
   (is (equal `(:mapping (,#?"block key\n" . ("one" "two")))
 	     (yaclyaml-parse 'l+block-mapping #?"? |\n  block key\n: - one # Explicit compact\n  - two # block value\n")))
-  (is (equal `(:mapping ("plain key" . "in-line value") ("" . "") ("quoted key" . ("entry")))
+  (is (equal `(:mapping ("plain key" . "in-line value") (:empty . :empty) ("quoted key" . ("entry")))
 	     (yaclyaml-parse 'l+block-mapping #?"plain key: in-line value\n: # Both empty\n\"quoted key\":\n- entry\n")))
   )
 
@@ -236,4 +237,15 @@ omitted value:,\n: omitted key,\n}")))
 	     (yaclyaml-parse 'l-yaml-stream #?"%TAG !e! tag:example.com,2000:app/\n---
 - !local foo\n- !!str bar\n- !e!tag%21 baz")))
   )
-  
+
+(test construction-of-representation-graph
+  ;; FIXME: for now such a lame check will suffice, I dunno how to check shared structured-ness easily
+  (is (equal `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "foo"))
+			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
+			(((:properties) (:content . "baz"))
+			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "foo"))))
+	     (ncompose-representation-graph
+	      (copy-tree `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str") (:anchor . "a1")) (:content . "foo"))
+				     . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
+				    (((:properties (:anchor . "a2")) (:content . "baz"))
+				     . (:alias . "a1"))))))))
