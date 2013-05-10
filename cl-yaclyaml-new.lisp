@@ -1019,6 +1019,45 @@
 				  
 
       
-  
+;;; Generating native structures from the nodes
 
+(defun find-parents (representation-graph)
+  (let ((parents (make-hash-table :test #'eq))
+	(visited (make-hash-table :test #'eq)))
+    (declare (special parents))
+    (labels ((rec (node)
+	       (format t "processing node: ~a~%" node)
+	       (if (not (property-node-p node))
+		   (error "All nodes at find parents stage ~a"
+			  "should be :PROPERTIES-:CONTENT-like.")
+		   (let ((content (cdr (assoc :content node))))
+		     (macrolet ((push-n-descend (parent child)
+				  `(progn (push ,parent (gethash ,child parents))
+					  (when (not (gethash ,child visited))
+					    (setf (gethash ,child visited) t)
+					    (rec ,child)))))
+		       (cond ((atom content) nil)
+			     ((mapping-node-p content)
+			      (iter (for (key . val) in (cdr content))
+				    (push-n-descend node key)
+				    (push-n-descend node val)))
+			     (t (iter (for subnode in content)
+				      (push-n-descend node subnode)))))))))
+      (rec representation-graph)
+      parents)))
+
+(defun spawn-empty-str ()
+  "")
+(defun spawn-empty-seq () (list))
+(defun spawn-empty-map (kwd)
+  (case kwd
+    (:small (list))
+    (:large (make-hash-table :test #'equal))))
+
+(defun nativicate (representation-graph)
+  "Reincarnate some of the nodes as native language structures."
+  (let ((parents (find-parents representation-graph)))
+    (labels ((rec (node)
+	     
+    (rec representation-graph)))
 

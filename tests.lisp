@@ -1,7 +1,7 @@
 (in-package :cl-user)
 
 (defpackage :cl-yaclyaml-tests
-  (:use :alexandria :cl :cl-yaclyaml :eos)
+  (:use :alexandria :cl :cl-yaclyaml :eos :iterate)
   (:export #:run-tests))
 
 (in-package :cl-yaclyaml-tests)
@@ -331,3 +331,60 @@ omitted value:,\n: omitted key,'':'',\n}")))
 				     . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
 				    (((:properties (:anchor . "a2")) (:content . "baz"))
 				     . (:alias . "a1"))))))))
+
+
+;;; Generating native language structures from representation graph
+
+(defmacro with-flat-nodes ((from to) &body body)
+  (iter (for i from from to to)
+	(collect `(,(sb-int:symbolicate "NODE" (format nil "~a" i))
+		    '((:properties) (:content . ,(format nil "~a" i)))) into res)
+	(finally (return `(let ,res ,@body)))))
+
+(defmacro with-cons-nodes ((from to) &body body)
+  (iter (for i from from to to)
+	(collect `(,(sb-int:symbolicate "CONS-NODE" (format nil "~a" i))
+		    (list (list :properties) (list :content))) into res)
+	(finally (return `(let ,res ,@body)))))
+
+(defmacro link-nodes (which where)
+  `(push ,which (cdr (assoc :content ,where))))
+
+(defun mk-node (num)
+  (sb-int:symbolicate "NODE" (format nil "~a" num)))
+
+(defun mk-cons-node (num)
+  (sb-int:symbolicate "CONS-NODE" (format nil "~a" num)))
+
+
+(test find-parents
+  (with-flat-nodes (1 5)
+    (with-cons-nodes (1 5)
+      (is (equal
+	   (let ((res (make-hash-table :test #'eq)))
+	     (setf (gethash cons-node2 res) (list cons-node1)
+		   (gethash node1 res) (list cons-node1)
+		   (gethash cons-node3 res) (list cons-node2)
+		   (gethash node2 res) (list cons-node2)
+		   (gethash cons-node4 res) (list cons-node3)
+		   (gethash node3 res) (list cons-node3)
+		   (gethash cons-node5 res) (list cons-node4)
+		   (gethash node4 res) (list cons-node4)
+		   (gethash node5 res) (list cons-node5))
+	     res)
+	   (macrolet ((with-simple-chain ((from to) &body body)
+			(iter (for i from from below to)
+			      (collect `(link-nodes ,(mk-node (1+ i))
+						    ,(mk-cons-node (1+ i))) into res)
+			      (collect `(link-nodes ,(mk-cons-node (1+ i))
+						    ,(mk-cons-node i)) into res)
+			      (finally (return
+					 `(progn (link-nodes ,(mk-node from)
+							     ,(mk-cons-node from))
+						 ,@res
+						 (let ((chain ,(mk-cons-node from)))
+						   ,@body)))))))
+	     (with-simple-chain (1 5)
+	       (cl-yaclyaml::find-parents chain))))))))
+	     
+	
