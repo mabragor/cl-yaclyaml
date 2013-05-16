@@ -335,56 +335,136 @@ omitted value:,\n: omitted key,'':'',\n}")))
 
 ;;; Generating native language structures from representation graph
 
-(defmacro with-flat-nodes ((from to) &body body)
-  (iter (for i from from to to)
-	(collect `(,(sb-int:symbolicate "NODE" (format nil "~a" i))
-		    '((:properties) (:content . ,(format nil "~a" i)))) into res)
-	(finally (return `(let ,res ,@body)))))
+;; (defmacro with-flat-nodes ((from to) &body body)
+;;   (iter (for i from from to to)
+;; 	(collect `(,(sb-int:symbolicate "NODE" (format nil "~a" i))
+;; 		    '((:properties) (:content . ,(format nil "~a" i)))) into res)
+;; 	(finally (return `(let ,res ,@body)))))
 
-(defmacro with-cons-nodes ((from to) &body body)
-  (iter (for i from from to to)
-	(collect `(,(sb-int:symbolicate "CONS-NODE" (format nil "~a" i))
-		    (list (list :properties) (list :content))) into res)
-	(finally (return `(let ,res ,@body)))))
+;; (defmacro with-cons-nodes ((from to) &body body)
+;;   (iter (for i from from to to)
+;; 	(collect `(,(sb-int:symbolicate "CONS-NODE" (format nil "~a" i))
+;; 		    (list (list :properties) (list :content))) into res)
+;; 	(finally (return `(let ,res ,@body)))))
 
-(defmacro link-nodes (which where)
-  `(push ,which (cdr (assoc :content ,where))))
+;; (defmacro link-nodes (which where)
+;;   `(push ,which (cdr (assoc :content ,where))))
 
-(defun mk-node (num)
-  (sb-int:symbolicate "NODE" (format nil "~a" num)))
+;; (defun mk-node (num)
+;;   (sb-int:symbolicate "NODE" (format nil "~a" num)))
 
-(defun mk-cons-node (num)
-  (sb-int:symbolicate "CONS-NODE" (format nil "~a" num)))
+;; (defun mk-cons-node (num)
+;;   (sb-int:symbolicate "CONS-NODE" (format nil "~a" num)))
 
 
-(test find-parents
-  (with-flat-nodes (1 5)
-    (with-cons-nodes (1 5)
-      (is (equal
-	   (let ((res (make-hash-table :test #'eq)))
-	     (setf (gethash cons-node2 res) (list cons-node1)
-		   (gethash node1 res) (list cons-node1)
-		   (gethash cons-node3 res) (list cons-node2)
-		   (gethash node2 res) (list cons-node2)
-		   (gethash cons-node4 res) (list cons-node3)
-		   (gethash node3 res) (list cons-node3)
-		   (gethash cons-node5 res) (list cons-node4)
-		   (gethash node4 res) (list cons-node4)
-		   (gethash node5 res) (list cons-node5))
-	     res)
-	   (macrolet ((with-simple-chain ((from to) &body body)
-			(iter (for i from from below to)
-			      (collect `(link-nodes ,(mk-node (1+ i))
-						    ,(mk-cons-node (1+ i))) into res)
-			      (collect `(link-nodes ,(mk-cons-node (1+ i))
-						    ,(mk-cons-node i)) into res)
-			      (finally (return
-					 `(progn (link-nodes ,(mk-node from)
-							     ,(mk-cons-node from))
-						 ,@res
-						 (let ((chain ,(mk-cons-node from)))
-						   ,@body)))))))
-	     (with-simple-chain (1 5)
-	       (cl-yaclyaml::find-parents chain))))))))
+;; (test find-parents
+;;   (with-flat-nodes (1 5)
+;;     (with-cons-nodes (1 5)
+;;       (is (equal
+;; 	   (let ((res (make-hash-table :test #'eq)))
+;; 	     (setf (gethash cons-node2 res) (list cons-node1)
+;; 		   (gethash node1 res) (list cons-node1)
+;; 		   (gethash cons-node3 res) (list cons-node2)
+;; 		   (gethash node2 res) (list cons-node2)
+;; 		   (gethash cons-node4 res) (list cons-node3)
+;; 		   (gethash node3 res) (list cons-node3)
+;; 		   (gethash cons-node5 res) (list cons-node4)
+;; 		   (gethash node4 res) (list cons-node4)
+;; 		   (gethash node5 res) (list cons-node5))
+;; 	     res)
+;; 	   (macrolet ((with-simple-chain ((from to) &body body)
+;; 			(iter (for i from from below to)
+;; 			      (collect `(link-nodes ,(mk-node (1+ i))
+;; 						    ,(mk-cons-node (1+ i))) into res)
+;; 			      (collect `(link-nodes ,(mk-cons-node (1+ i))
+;; 						    ,(mk-cons-node i)) into res)
+;; 			      (finally (return
+;; 					 `(progn (link-nodes ,(mk-node from)
+;; 							     ,(mk-cons-node from))
+;; 						 ,@res
+;; 						 (let ((chain ,(mk-cons-node from)))
+;; 						   ,@body)))))))
+;; 	     (with-simple-chain (1 5)
+;; 	       (cl-yaclyaml::find-parents chain))))))))
 	     
 	
+(test scalar-construction-failsafe
+  (is (equal '((:content . "asdf") (:tag . :non-specific))
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :failsafe)))
+  (is (equal "asdf"
+	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:str"))) (:content . "asdf")) :schema :failsafe)))
+  (is (equal '((:content . :empty) (:tag . "tag:yaml.org,2002:null"))
+	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:null"))) (:content . :empty)) :schema :failsafe))))
+  
+  
+(test scalar-construction-json
+  (signals (error "JSON impication of scalar didn't signal an error.")
+      (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :json))
+  (is (equal "asdf"
+	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:str"))) (:content . "asdf")) :schema :json)))
+  (is (equal 123
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "123")) :schema :json)))
+  (is (equal -3.14
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-3.14")) :schema :json)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . :empty)) :schema :json)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "null")) :schema :json))))
+  
+
+(test scalar-construction-core
+  (is (equal "asdf"
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :core)))
+  (is (equal "asdf"
+	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:str"))) (:content . "asdf")) :schema :core)))
+  (is (equal 123
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "123")) :schema :core)))
+  (is (equal -3.14
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-3.14")) :schema :core)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . :empty)) :schema :core)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "null")) :schema :core)))
+  (is (equal ""
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "")) :schema :core)))
+  (is (equal t
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "true")) :schema :core)))
+  (is (equal t
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "True")) :schema :core)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "false")) :schema :core)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "FALSE")) :schema :core)))
+  (is (equal 0
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0")) :schema :core)))
+  (is (equal 7
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0o7")) :schema :core)))
+  (is (equal 58
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0x3A")) :schema :core)))
+  (is (equal -19
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-19")) :schema :core)))
+  (is (equalp 0
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0.")) :schema :core)))
+  (is (equalp 0
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-0.0")) :schema :core)))
+  (is (equal 0.5
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . ".5")) :schema :core)))
+  (is (equalp 12000
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "+12e03")) :schema :core)))
+  (is (equalp -200000
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-2E+05")) :schema :core)))
+  (is (equalp :nan
+	      (construct '((:properties . ((:tag . :non-specific))) (:content . ".NAN")) :schema :core)))
+  (is (equalp :infinity
+	      (construct '((:properties . ((:tag . :non-specific))) (:content . ".Inf")) :schema :core)))
+  )
+
+
+
+
+
+  
+  
+  
+
+  
