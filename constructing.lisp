@@ -106,10 +106,11 @@
 
 ;; I need to do the depth-first traversing of the graph
 
-
-(defparameter visited-nodes `(,(make-hash-table :test #'eq)))
-
-(defparameter converted-nodes (make-hash-table :test #'eq))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter visited-nodes `(,(make-hash-table :test #'eq)))
+  (defparameter converted-nodes (make-hash-table :test #'eq))
+  (defparameter scalar-converters (make-hash-table :test #'equal))
+  (defparameter initialization-callbacks (make-hash-table :test #'eq)))
 
 (defmacro with-fresh-visited-level (&body body)
   `(let ((visited-nodes `(,(make-hash-table :test #'eq) ,visited-nodes)))
@@ -133,7 +134,6 @@
 	    (return t))
 	(finally (return nil))))
 
-(defparameter scalar-converters (make-hash-table :test #'equal))
 (defun install-scalar-converter (tag converter)
   (setf (gethash tag scalar-converters) converter))
 
@@ -225,19 +225,26 @@
 	    (finally (if next-level
 			 (depth-first-traverse next-level (1+ level)))
 		     (iter (for node in cur-level)
-			   (cond ((scalar-p node) (if (not (gethash node converted-nodes))
-						      (setf (gethash node converted-nodes)
-							    (let ((content (cdr (assoc :content node)))
-								  (properties (cdr (assoc :properties node))))
-							      (convert-scalar content
-									      (cdr (assoc :tag properties)))))))
-				 (t (error "Non-atomic types not implemented so far."))))
+			   (when (not (gethash node converted-nodes))
+			     (let* ((content (cdr (assoc :content node)))
+				    (properties (cdr (assoc :properties node)))
+				    (tag (cdr (assoc :tag properties))))
+			       (setf (gethash node converted-nodes)
+				     (cond ((scalar-p node)
+					    (convert-scalar content tag))
+					   ((mapping-p node)
+					    (error "Mapping types are not implemented so far."))
+					   (t ...))))
+			     (iter (for callback in
+					(gethash node initialization-callbacks))
+				   (funcall callback))))
 		     )))))
 		   
 
 (defun construct (representation-graph &key (schema :core))
   (let ((visited-nodes `(,(make-hash-table :test #'eq)))
-	(converted-nodes (make-hash-table :test #'eq)))
+	(converted-nodes (make-hash-table :test #'eq))
+	(initialization-callbacks (make-hash-table :test #'eq)))
     (case schema
       (:failsafe (with-failsafe-schema
 		   (%depth-first-traverse `(,representation-graph))))
