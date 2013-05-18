@@ -1,115 +1,15 @@
+;;;; This file is one of components of CL-YACLYAML system, licenced under GPL, see COPYING for details
+
 (in-package #:cl-yaclyaml)
 
 ;;; Generating native structures from the nodes
- 
-;; (defun find-parents (representation-graph)
-;;   (let ((parents (make-hash-table :test #'eq))
-;; 	(visited (make-hash-table :test #'eq)))
-;;     (declare (special parents))
-;;     (labels ((rec (node)
-;; 	       (format t "processing node: ~a~%" node)
-;; 	       (if (not (property-node-p node))
-;; 		   (error "All nodes at find parents stage ~a"
-;; 			  "should be :PROPERTIES-:CONTENT-like.")
-;; 		   (let ((content (cdr (assoc :content node))))
-;; 		     (macrolet ((push-n-descend (parent child)
-;; 				  `(progn (push ,parent (gethash ,child parents))
-;; 					  (when (not (gethash ,child visited))
-;; 					    (setf (gethash ,child visited) t)
-;; 					    (rec ,child)))))
-;; 		       (cond ((atom content) nil)
-;; 			     ((mapping-node-p content)
-;; 			      (iter (for (key . val) in (cdr content))
-;; 				    (push-n-descend node key)
-;; 				    (push-n-descend node val)))
-;; 			     (t (iter (for subnode in content)
-;; 				      (push-n-descend node subnode)))))))))
-;;       (rec representation-graph)
-;;       parents)))
-
-;; (defun spawn-empty-str ()
-;;   "")
-;; (defun spawn-empty-seq () (list))
-;; (defun spawn-empty-map (kwd)
-;;   (case kwd
-;;     (:small (list))
-;;     (:large (make-hash-table :test #'equal))))
-
-;; (defparameter tag-fresh-replacements (make-hash-table :test #'equal))
-;; (defparameter node-replacements (make-hash-table :test #'eq))
-;; (defparameter visited-nodes (make-hash-table :test #'eq))
-
-;; (defmacro with-failsafe-tag-schema (&body body)
-;;   `(let ((tag-fresh-replacements (make-hash-table :test #'equal)))
-;;      (declare (special tag-fresh-replacements))
-;;      (setf (gethash "tag:yaml.org,2002:str" tag-fresh-replacements)
-;; 	   (lambda (node)
-;; 	     "String is simply a string. Generated immediately"
-;; 	     (let ((res (copy-seq (cdr (assoc :content node)))))
-;; 	       (setf (gethash node node-replacements) res)
-;; 	       res))
-;; 	   (gethash "tag:yaml.org,2002:seq" tag-fresh-replacements)
-;; 	   (lambda (node)
-;; 	     "Sequence is link to cons list. Populated gradually, initially empty. At the final step, we'll
-;; 'evaporate' additional linking layer."
-;; 	     (let ((res (cons nil nil)))
-;; 	       (setf (gethash node node-replacements) res)
-;; 	       res))
-;; 	   (gethash "tag:yaml.org,2002:map" tag-fresh-replacements)
-;; 	   (lambda (node)
-;; 	     "Mapping is for now a hash-table. I dunno how to populate it for now."
-;; 	     (let ((res (make-hash-table :test #'equal)))
-;; 	       (setf (gethash node node-replacements) res)
-;; 	       res))
-;; 	   (gethash t tag-fresh-replacements)
-;; 	   (lambda (node)
-;; 	     "Unknown nodes are not replaced."
-;; 	     node))
-;;      ,@body))
-	    
-;; (defun node-replacement (node)
-;;   (gethash (cdr (assoc :tag (cdr (assoc :properties node)))) tag-fresh-replacements))
-
-;; (defmacro visited-p (node)
-;;   `(gethash ,node visited-nodes))
-
-;; (defun merge-new-node (node new-node)
-;;   (let ((tag (cdr (assoc :tag (cdr (assoc :properties node)))))
-;; 	(content (cdr (assoc :content node))))
-;;     (cond ((equal tag "tag:yaml.org,2002:str") nil) ; for string nothing should be done
-;; 	  ((equal tag "tag:yaml.org,2002:seq") ...) ; something clearly could be done
-;; 	  ((equal tag "tag:yaml.org,2002:map")
-;; 	   (error "Maps are so far not implemented."))
-;; 	  (t (cond ((typep content 'string) nil) ; strings do not require merging
-;; 		   ((consp content) (if (mapping-node-p content)
-;; 					(error "Mapping nodes are not impliemented yet.")
-;; 					(iter (for subnode on content)
-;; 					      (let ((it (gethash (car subnode) node-replacements)))
-;; 						(if it
-;; 						    (setf (car subnode) it)
-;; 						    (setf it (funcall (node-replacement subnode) (car subnode))))
-;; 						(when (not (visited-p it))
-;; 						  (merge-new-node (car subnode) it))))))
-;; 		   (t (error "Strange content ~a with tag ~a" content tag)))))
-;;     (setf (visited-p new-node) t)))
-	  
-	   
-  
-
-;; (defun nativicate (representation-graph)
-;;   "Reincarnate some of the nodes as native language structures."
-;;   (let ((parents (find-parents representation-graph)))
-;;     (labels ((rec (node)
-	       
-;;     (rec representation-graph)))
-
-
-;; I need to do the depth-first traversing of the graph
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter visited-nodes `(,(make-hash-table :test #'eq)))
   (defparameter converted-nodes (make-hash-table :test #'eq))
   (defparameter scalar-converters (make-hash-table :test #'equal))
+  (defparameter sequence-converters (make-hash-table :test #'equal))
+  (defparameter mapping-converters (make-hash-table :test #'equal))
   (defparameter initialization-callbacks (make-hash-table :test #'eq)))
 
 (defmacro with-fresh-visited-level (&body body)
@@ -136,6 +36,11 @@
 
 (defun install-scalar-converter (tag converter)
   (setf (gethash tag scalar-converters) converter))
+(defun install-sequence-converter (tag converter)
+  (setf (gethash tag sequence-converters) converter))
+(defun install-mapping-converter (tag converter)
+  (setf (gethash tag mapping-converters) converter))
+
 
 (defun trivial-scalar-converter (content)
   (copy-seq content))
@@ -148,9 +53,77 @@
 	;; yet, we strip unneeded :PROPERTIES list, leaving only :TAG property.
 	`((:content . ,content) (:tag . ,tag)))))
 
+(defun convert-sequence (content tag)
+  (let ((converter (gethash tag sequence-converters)))
+    (if converter
+	(funcall converter content)
+	`((:content . ,(convert-sequence-to-list content)) (:tag . ,tag)))))
+
+(defun convert-mapping (content tag)
+  (let ((converter (gethash tag mapping-converters)))
+    (if converter
+	(funcall converter content)
+	`((:content . ,(convert-mapping-to-hashtable content)) (:tag . ,tag)))))
+
+(defun convert-sequence-to-list (nodes)
+  (let (result last-cons)
+    (macrolet! ((collect-result (o!-node)
+		 `(if result
+		      (progn (setf (cdr last-cons) (list ,o!-node))
+			     (setf last-cons (cdr last-cons)))
+		      (progn (setf result (list ,o!-node))
+			     (setf last-cons result)))))
+      (iter (for subnode in nodes)
+	    (multiple-value-bind (it got) (gethash subnode converted-nodes)
+	      (if got
+		  (collect-result it)
+		  (if (scalar-p subnode)
+		      (collect-result (convert-scalar! subnode))
+		      (progn (collect-result nil)
+			     (push (lambda ()
+				     (setf (car last-cons) (gethash subnode converted-nodes)))
+				   (gethash subnode initialization-callbacks)))))))
+      result)))
+
+(defun convert-mapping-to-hashtable (content)
+  (let ((result (make-hash-table :test #'equal)))
+    (iter (for (key . val) in (cdr content)) ; CAR of content is :MAPPING keyword
+	  (multiple-value-bind (conv-key got-key) (gethash key converted-nodes)
+	    (multiple-value-bind (conv-val got-val) (gethash val converted-nodes)
+	      (if got-key
+		  (if got-val
+		      (setf (gethash conv-key result) conv-val)
+		      (push (lambda ()
+			      (setf (gethash conv-key result)
+				    (gethash val converted-nodes)))
+			    (gethash val initialization-callbacks)))
+		  (if got-val
+		      (push (lambda ()
+			      (setf (gethash got-key result)
+				    (gethash val converted-nodes)))
+			    (gethash key initialization-callbacks))
+		      (let (key-installed val-installed)
+			(flet ((frob-key ()
+				 (if val-installed
+				     (setf (gethash key-installed result) val-installed)
+				     (setf key-installed (gethash key converted-nodes))))
+			       (frob-val ()
+				 (if key-installed
+				     (setf (gethash key-installed result) val-installed)
+				     (setf val-installed (gethash val converted-nodes)))))
+			  (push #'frob-key (gethash key initialization-callbacks))
+			  (push #'frob-val (gethash val initialization-callbacks)))))
+		  ))))
+    result))
+  
+
 (defmacro with-failsafe-schema (&body body)
-  `(let ((scalar-converters (make-hash-table :test #'equal)))
+  `(let ((scalar-converters (make-hash-table :test #'equal))
+	 (sequence-converters (make-hash-table :test #'equal))
+	 (mapping-converters (make-hash-table :test #'equal)))
      (install-scalar-converter "tag:yaml.org,2002:str" #'trivial-scalar-converter)
+     (install-sequence-converter "tag:yaml.org,2002:seq" #'convert-sequence-to-list)
+     (install-mapping-converter "tag:yaml.org,2002:map" #'convert-mapping-to-hashtable)
      ,@body))
 
 (defmacro with-json-schema (&body body)
@@ -182,6 +155,12 @@
 				       ((all-matches "^-?(0|[1-9][0-9]*)(\\.[0-9]*)?([eE][-+]?[0-9]+)?$" content)
 					(convert-scalar content "tag:yaml.org,2002:float"))
 				       (t (error "Could not resolve scalar: ~a" content)))))
+     (install-sequence-converter :non-specific
+				 (lambda (content)
+				   (convert-sequence content "tag:yaml.org,2002:seq"))) 
+     (install-mapping-converter :non-specific
+				(lambda (content)
+				  (convert-mapping content "tag:yaml.org,2002:map"))) 
      ,@body))
 
 
@@ -209,6 +188,23 @@
 				       (t (convert-scalar content "tag:yaml.org,2002:str")))))
      ,@body))
 
+(defmacro define-bang-convert (name converter-name)
+  `(defun ,name (node)
+     (multiple-value-bind (it got) (gethash node converted-nodes)
+       (if (not got)
+	   (let* ((content (cdr (assoc :content node)))
+		  (properties (cdr (assoc :properties node)))
+		  (tag (cdr (assoc :tag properties))))
+	     (setf (gethash node converted-nodes)
+		   (,converter-name content tag))
+	     (iter (for callback in
+			(gethash node initialization-callbacks))
+		   (funcall callback)))
+	   it))))
+(define-bang-convert convert-scalar! convert-scalar)
+(define-bang-convert convert-sequence! convert-sequence)
+(define-bang-convert convert-mapping! convert-mapping)
+
 (defun %depth-first-traverse (cur-level &optional (level 0))
   (macrolet ((add-node-if-not-visited (node)
 	       `(when (not (visited-p ,node))
@@ -223,7 +219,7 @@
 		  (t (iter (for subnode in (cdr (assoc :content node)))
 			   (add-node-if-not-visited subnode))))
 	    (finally (if next-level
-			 (depth-first-traverse next-level (1+ level)))
+			 (%depth-first-traverse next-level (1+ level)))
 		     (iter (for node in cur-level)
 			   (when (not (gethash node converted-nodes))
 			     (let* ((content (cdr (assoc :content node)))
@@ -233,13 +229,12 @@
 				     (cond ((scalar-p node)
 					    (convert-scalar content tag))
 					   ((mapping-p node)
-					    (error "Mapping types are not implemented so far."))
-					   (t ...))))
+					    (convert-mapping content tag))
+					   (t (convert-sequence content tag)))))
 			     (iter (for callback in
 					(gethash node initialization-callbacks))
 				   (funcall callback))))
 		     )))))
-		   
 
 (defun construct (representation-graph &key (schema :core))
   (let ((visited-nodes `(,(make-hash-table :test #'eq)))
@@ -254,5 +249,8 @@
 	       (%depth-first-traverse `(,representation-graph)))))
     (gethash representation-graph converted-nodes)))
   
-    
-    
+(defun yaml-load (string &key (schema :core))
+  (iter (for (document content) in (ncompose-representation-graph (yaclyaml-parse 'l-yaml-stream string)))
+	(collect `(:document ,(construct content :schema schema)))))
+
+

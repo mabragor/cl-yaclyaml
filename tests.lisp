@@ -459,12 +459,18 @@ omitted value:,\n: omitted key,'':'',\n}")))
 	      (construct '((:properties . ((:tag . :non-specific))) (:content . ".Inf")) :schema :core)))
   )
 
+(test simple-sequences
+  (is (equal '((:document ("foo" "bar" "baz")))
+	     (yaml-load #?"- foo\n- bar\n- baz\n")))
+  (is (equal '((:document ((:content . (((:content . "foo") (:tag . :non-specific))
+					((:content . "bar") (:tag . :non-specific))
+					((:content . "baz") (:tag . :non-specific))))
+			   (:tag . :non-specific))))
+	     (yaml-load #?"- foo\n- bar\n- baz\n" :schema :failsafe)))
+  )
 
-
-
-
-  
-  
-  
-
+(test simple-mappings
+  (is (equal '(("earth" . "green") ("moon" . "blue") ("sun" . "gold"))
+	     (sort (hash->assoc (cadar (yaml-load #?"sun : gold\nearth : green\nmoon : blue")))
+		   #'string< :key #'car))))
   

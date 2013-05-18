@@ -1,3 +1,5 @@
+;;;; This file is one of components of CL-YACLYAML system, licenced under GPL, see COPYING for details
+
 (in-package #:cl-yaclyaml)
 
 ;;; Composing representation graph
