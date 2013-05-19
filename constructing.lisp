@@ -5,19 +5,15 @@
 ;;; Generating native structures from the nodes
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter visited-nodes `(,(make-hash-table :test #'eq)))
+  (defparameter visited-nodes (make-hash-table :test #'eq))
   (defparameter converted-nodes (make-hash-table :test #'eq))
   (defparameter scalar-converters (make-hash-table :test #'equal))
   (defparameter sequence-converters (make-hash-table :test #'equal))
   (defparameter mapping-converters (make-hash-table :test #'equal))
   (defparameter initialization-callbacks (make-hash-table :test #'eq)))
 
-(defmacro with-fresh-visited-level (&body body)
-  `(let ((visited-nodes `(,(make-hash-table :test #'eq) ,visited-nodes)))
-     ,@body))
-
-(defmacro mark-node-as-visited (node)
-  (setf (gethash node (car visited-nodes)) t))
+(defun mark-node-as-visited (node)
+  (setf (gethash node visited-nodes) t))
 
 (defun scalar-p (node)
   (atom (cdr (assoc :content node))))
@@ -29,10 +25,7 @@
   (gethash node converted-nodes))
 
 (defun visited-p (node)
-  (iter (for level in visited-nodes)
-	(if (gethash node level)
-	    (return t))
-	(finally (return nil))))
+  (gethash node visited-nodes))
 
 (defun install-scalar-converter (tag converter)
   (setf (gethash tag scalar-converters) converter))
@@ -76,13 +69,16 @@
       (iter (for subnode in nodes)
 	    (multiple-value-bind (it got) (gethash subnode converted-nodes)
 	      (if got
-		  (collect-result it)
-		  (if (scalar-p subnode)
-		      (collect-result (convert-scalar! subnode))
-		      (progn (collect-result nil)
-			     (push (lambda ()
-				     (setf (car last-cons) (gethash subnode converted-nodes)))
-				   (gethash subnode initialization-callbacks)))))))
+		  (progn (collect-result it))
+		  (progn (collect-result nil)
+			 ;; LET block here is extremely important, since it results in
+			 ;; LAMBDA capturing current values of SUBNODE and LAST-CONS and not the
+			 ;; ones they have upon last iteration.
+			 (push (let ((encap-subnode subnode)
+				     (place last-cons))
+				 (lambda ()
+				   (setf (car place) (gethash encap-subnode converted-nodes))))
+			       (gethash subnode initialization-callbacks))))))
       result)))
 
 (defun convert-mapping-to-hashtable (content)
@@ -90,27 +86,38 @@
     (iter (for (key . val) in (cdr content)) ; CAR of content is :MAPPING keyword
 	  (multiple-value-bind (conv-key got-key) (gethash key converted-nodes)
 	    (multiple-value-bind (conv-val got-val) (gethash val converted-nodes)
+	      ;; LET blocks here are extremely important, since they result in
+	      ;; LAMBDAs capturing current values of KEY and VAL and not the
+	      ;; ones they have upon last iteration.
+	      ;; ENCAP- stands for "encaptured"
 	      (if got-key
 		  (if got-val
 		      (setf (gethash conv-key result) conv-val)
-		      (push (lambda ()
-			      (setf (gethash conv-key result)
-				    (gethash val converted-nodes)))
+		      (push (let ((encap-key conv-key)
+				  (encap-val val))
+			      (lambda ()
+				(setf (gethash encap-key result)
+				      (gethash encap-val converted-nodes))))
 			    (gethash val initialization-callbacks)))
 		  (if got-val
-		      (push (lambda ()
-			      (setf (gethash got-key result)
-				    (gethash val converted-nodes)))
+		      (push (let ((encap-key got-key)
+				  (encap-val val))
+			      (lambda ()
+				(setf (gethash encap-key result)
+				      (gethash encap-val converted-nodes))))
 			    (gethash key initialization-callbacks))
-		      (let (key-installed val-installed)
+		      (let (key-installed
+			    val-installed
+			    (encap-key key)
+			    (encap-val val))
 			(flet ((frob-key ()
 				 (if val-installed
 				     (setf (gethash key-installed result) val-installed)
-				     (setf key-installed (gethash key converted-nodes))))
+				     (setf key-installed (gethash encap-key converted-nodes))))
 			       (frob-val ()
 				 (if key-installed
 				     (setf (gethash key-installed result) val-installed)
-				     (setf val-installed (gethash val converted-nodes)))))
+				     (setf val-installed (gethash encap-val converted-nodes)))))
 			  (push #'frob-key (gethash key initialization-callbacks))
 			  (push #'frob-val (gethash val initialization-callbacks)))))
 		  ))))
@@ -233,11 +240,12 @@
 					   (t (convert-sequence content tag)))))
 			     (iter (for callback in
 					(gethash node initialization-callbacks))
-				   (funcall callback))))
+				   (funcall callback))
+			     (remhash node initialization-callbacks)))
 		     )))))
 
 (defun construct (representation-graph &key (schema :core))
-  (let ((visited-nodes `(,(make-hash-table :test #'eq)))
+  (let ((visited-nodes (make-hash-table :test #'eq))
 	(converted-nodes (make-hash-table :test #'eq))
 	(initialization-callbacks (make-hash-table :test #'eq)))
     (case schema
@@ -254,3 +262,8 @@
 	(collect `(:document ,(construct content :schema schema)))))
 
 
+(defun yaml-simple-load (string &key (schema :core))
+  (let ((result (yaml-load string :schema schema)))
+    (if (equal (length result) 1)
+	(cadar result)
+	(error "Simple form assumed, but multiple documents found in the input."))))

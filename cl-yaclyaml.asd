@@ -6,7 +6,7 @@
 (in-package cl-yaclyaml-system)
 
 (defsystem #:cl-yaclyaml
-  :version "0.2"
+  :version "0.3"
   :serial t
   :description "Yet Another Common Lisp YaML processor."
   :author "Alexander Popolitov <popolit@itep.ru>"
@@ -15,6 +15,7 @@
 			 #:esrap #:alexandria #:yaclanapht #:cl-ppcre #:defmacro-enhance #:parse-number)
   :components ((:file "package")
 	       (:file "esrap-parser-basics")
+	       (:file "macro-utils")
 	       (:file "parsing")
 	       (:file "composing")
 	       (:file "constructing")

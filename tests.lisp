@@ -469,8 +469,52 @@ omitted value:,\n: omitted key,'':'',\n}")))
 	     (yaml-load #?"- foo\n- bar\n- baz\n" :schema :failsafe)))
   )
 
+(test simple-sequences
+  (is (equal '("foo" "bar" "baz")
+	     (yaml-simple-load #?"- foo\n- bar\n- baz\n")))
+  (is (equal '((:content . (((:content . "foo") (:tag . :non-specific))
+			    ((:content . "bar") (:tag . :non-specific))
+			    ((:content . "baz") (:tag . :non-specific))))
+	       (:tag . :non-specific))
+	     (yaml-simple-load #?"- foo\n- bar\n- baz\n" :schema :failsafe)))
+  (signals (error "simple load of multiple documents doesn't signal an error.")
+	   (cl-yaclyaml::yaml-simple-load #?"- foo\n- bar\n- baz\n...\n- goo...\n- goo"))
+  (is (equal '("foo" "bar" ("baz" "baz2" "baz3"))
+	     (yaml-simple-load #?"- foo\n- bar\n- - baz\n  - baz2\n  - baz3")))
+  )
+
+
 (test simple-mappings
   (is (equal '(("earth" . "green") ("moon" . "blue") ("sun" . "gold"))
 	     (sort (hash->assoc (cadar (yaml-load #?"sun : gold\nearth : green\nmoon : blue")))
 		   #'string< :key #'car))))
+
+(defparameter simplest-cyclic (yaml-simple-load #?"&foo\n- 1\n- *foo\n- 2\n- 3"))
+
+(test simple-cyclics
+  (is (equal 1 (car simplest-cyclic)))
+  (is (equal 2 (caddr simplest-cyclic)))
+  (is (equal 3 (cadddr simplest-cyclic)))
+  (is (equal nil (nth 4 simplest-cyclic)))
+  (is (equal 1 (car (cadr simplest-cyclic)))))
+
+(defparameter alias-mapping
+  ;; additional sequence level in all but first map is to ensure actual values of &FOO and &BAR are
+  ;; processed after those maps, thus the need to use callback-code is there.
+  (let ((loadee (yaml-simple-load #?"- ? &foo a\n  : &bar b
+- - ? *foo
+    : b
+- - ? a
+    : *bar
+- - ? *foo
+    : *bar")))
+    (mapcar #'hash->assoc `(,(car loadee) ,@(mapcar #'car (cdr loadee))))))
+    
+(test alias-mappings
+  (is (eq (caar (first alias-mapping)) (caar (second alias-mapping))))
+  (is (not (eq (cdar (first alias-mapping)) (cdar (second alias-mapping)))))
+  (is (not (eq (caar (first alias-mapping)) (caar (third alias-mapping)))))
+  (is (eq (cdar (first alias-mapping)) (cdar (third alias-mapping))))
+  (is (eq (caar (first alias-mapping)) (caar (fourth alias-mapping))))
+  (is (eq (cdar (first alias-mapping)) (cdar (fourth alias-mapping)))))
   

@@ -814,15 +814,6 @@
 (define-rule ns-flow-content (or (tag :yaml ns-flow-yaml-content)
 				 (tag :json c-flow-json-content)))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defmacro! crunch-tag-into-properties (props-var crunch-if-absent crunch-if-vanilla)
-    `(if ,props-var
-	 (let ((it (assoc :tag (cdr ,props-var))))
-	   (if it
-	       (if (equal (cdr it) :vanilla)
-		   (setf (cdr it) ,crunch-if-vanilla))
-	       (setf (cdr ,props-var) `((:tag . ,,crunch-if-absent) ,.(cdr ,props-var)))))
-	 (setf ,props-var `(:properties (:tag . ,,crunch-if-absent))))))
 
 (defmacro with-ensured-properties-not-alias (var &body body)
   `(if (alias-p ,var)
