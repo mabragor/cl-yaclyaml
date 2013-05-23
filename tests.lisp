@@ -518,3 +518,40 @@ omitted value:,\n: omitted key,'':'',\n}")))
   (is (eq (caar (first alias-mapping)) (caar (fourth alias-mapping))))
   (is (eq (cdar (first alias-mapping)) (cdar (fourth alias-mapping)))))
   
+
+;;;; tests for process of dumping
+
+(test represent-node
+  (is (equal '((:properties (:tag . "tag:yaml.org,2002:int")) (:CONTENT . "123"))
+	     (represent-node 123)))
+  (is (equal '((:properties (:tag . "tag:yaml.org,2002:float")) (:CONTENT . "12.3"))
+	     (represent-node 12.3)))
+  (is (equal '((:properties (:tag . "tag:yaml.org,2002:str")) (:CONTENT . "123"))
+	     (represent-node "123")))
+  (is (equal '((:properties (:tag . "tag:lisp,2013:symbol")) (:CONTENT . "ASDF"))
+	     (represent-node 'asdf)))
+  (is (equal '((:properties (:tag . "tag:lisp,2013:keyword")) (:CONTENT . "ASDF"))
+	     (represent-node :asdf)))
+  (is (equal '((:properties (:tag . "tag:yaml.org,2002:seq"))
+	       (:content . (((:properties (:tag . "tag:yaml.org,2002:int")) (:CONTENT . "1"))
+			    ((:properties (:tag . "tag:yaml.org,2002:int")) (:CONTENT . "2"))
+			    ((:properties (:tag . "tag:yaml.org,2002:int")) (:CONTENT . "3")))))
+	     (represent-node '(1 2 3))))
+  (is (equal '((:properties (:tag . "tag:yaml.org,2002:map"))
+	       (:content . (:mapping
+			    (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "e"))
+			     . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "r")))
+			    (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "q"))
+			     . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "w")))
+			    (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "t"))
+			     . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "y"))))))
+	     (let ((res (represent-node (let ((a (make-hash-table :test #'equal)))
+					  (setf (gethash "q" a) "w"
+						(gethash "e" a) "r"
+						(gethash "t" a) "y")
+					  a))))
+	       (setf (cddadr res) (sort (cddadr res) #'string< :key (lambda (x)
+								      (cdr (assoc :content (car x))))))
+	       res)))
+  )
+      

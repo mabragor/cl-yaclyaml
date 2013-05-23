@@ -9,4 +9,5 @@
   (:shadowing-import-from #:cl-test-more
                           :ok :plan :finalize :is :isnt :is-expand :diag)
   (:shadowing-import-from #:alexandria #:flatten)
-  (:export #:yaclyaml-parse #:ncompose-representation-graph #:construct #:yaml-load #:hash->assoc #:yaml-simple-load))
+  (:export #:yaclyaml-parse #:ncompose-representation-graph #:construct #:yaml-load #:hash->assoc #:yaml-simple-load
+	   #:represent-node))
