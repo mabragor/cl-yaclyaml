@@ -31,9 +31,9 @@
   (let (result last-cons)
     (macrolet! ((collect-result (o!-key o!-val)
 				`(if result
-				     (progn (setf (cdr last-cons) (list `(,o!-key . ,o!-val)))
+				     (progn (setf (cdr last-cons) (list `(,,o!-key . ,,o!-val)))
 					    (setf last-cons (cdr last-cons)))
-				     (progn (setf result (list `(,o!-key . ,o!-val)))
+				     (progn (setf result (list `(,,o!-key . ,,o!-val)))
 					    (setf last-cons result))))
 		(frob ()
 		      `(progn
@@ -47,17 +47,13 @@
 					      (encap-last-cons last-cons))
 					  (flet ((frob-key ()
 						   (if initialized-val
-						       (setf (caar encap-last-cons)
-							     initialized-key
-							     (cdar encap-last-cons)
-							     initialized-val)
+						       (setf (caar encap-last-cons) initialized-key
+							     (cdar encap-last-cons) initialized-val)
 						       (setf initialized-key (gethash encap-key representation-cache))))
 						 (frob-val ()
 						   (if initialized-key
-						       (setf (caar encap-last-cons)
-							     initialized-key
-							     (cdar encap-last-cons)
-							     initialized-val)
+						       (setf (caar encap-last-cons) initialized-key
+							     (cdar encap-last-cons) initialized-val)
 						       (setf initialized-val (gethash encap-val representation-cache)))))
 					    (push #'frob-key (gethash key initialization-callbacks))
 					    (push #'frob-val (gethash val initialization-callbacks)))))
@@ -80,21 +76,21 @@
 			 (collect `(,(%represent-node key) . ,(%represent-node val)) into res)
 			 (finally (return (values `((:properties . ((:tag . ,(strcat tag-prefix "map"))))
 						    (:content . (:mapping ,.result)))
-						  t)))))))
-    (typecase x
-      (hash-table (if (eq (hash-table-test x) 'equal)
-		      (iter (for (key val) in-hashtable x)
-			    (frob))
-		      (error "Hash-tables with test-functions other than EQUAL cannot be dumped now.")))
-      (cons (cond ((and cons-maps-as-maps (alist-p x))
-		   (iter (for (key . val) in x)
-			 (frob)))
-		  ((and cons-maps-as-maps (plist-p x))
-		   (iter (for key in x by #'cddr)
-			 (for val in (cdr x) by #'cddr)
-			 (frob)))
-		  (t (values nil nil))))
-      (t (values nil nil)))))
+						  t))))))
+      (typecase x
+	(hash-table (if (eq (hash-table-test x) 'equal)
+			(iter (for (key val) in-hashtable x)
+			      (frob))
+			(error "Hash-tables with test-functions other than EQUAL cannot be dumped now.")))
+	(cons (cond ((and cons-maps-as-maps (alist-p x))
+		     (iter (for (key . val) in x)
+			   (frob)))
+		    ((and cons-maps-as-maps (plist-p x))
+		     (iter (for key in x by #'cddr)
+			   (for val in (cdr x) by #'cddr)
+			   (frob)))
+		    (t (values nil nil))))
+	(t (values nil nil))))))
 
 (defun represent-sequence (x)
   (declare (special representation-cache))
