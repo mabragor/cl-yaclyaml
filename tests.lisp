@@ -518,3 +518,44 @@ omitted value:,\n: omitted key,'':'',\n}")))
   (is (eq (caar (first alias-mapping)) (caar (fourth alias-mapping))))
   (is (eq (cdar (first alias-mapping)) (cdar (fourth alias-mapping)))))
   
+
+(defun gen-shared-sequence1 ()
+  (let ((lst (list `(,(list :properties '(:tag . "tag:yaml.org,2002:str")) (:content . "foo"))
+		   `(,(list :properties '(:tag . "tag:yaml.org,2002:str")) (:content . "bar"))
+		   `(,(list :properties) (:content . "baz")))))
+    `(,(list :properties '(:tag . "tag:yaml.org,2002:seq"))
+      (:content . (,. lst ,(car lst))))))
+
+(defun gen-shared-sequence2 ()
+  (let ((seq `(,(list :properties '(:tag . "tag:yaml.org,2002:seq"))
+	       (:content . ,(list `(,(list :properties '(:tag . "tag:yaml.org,2002:str")) (:content . "foo")))))))
+    (push seq (cdr (assoc :content seq)))
+    seq))
+
+(defun gen-shared-mapping1 ()
+  (let ((node1 `(,(list :properties '(:tag . "tag:yaml.org,2002:str")) (:content . "foo")))
+	(node2 `(,(list :properties '(:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
+	(node3 `(,(list :properties) (:content . "baz"))))
+    `(,(list :properties '(:tag . "tag:yaml.org,2002:map"))
+       (:content . (:mapping (,node1 . ,node2) (,node3 . ,node1))))))
+
+(test serialization
+  (is (equal `((:properties (:tag . "tag:yaml.org,2002:seq"))
+	       (:content .(((:properties (:anchor . "a1") (:tag . "tag:yaml.org,2002:str")) (:content . "foo"))
+			   ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar"))
+			   ((:properties) (:content . "baz"))
+			   (:alias . "a1"))))
+	     (nserialize (gen-shared-sequence1))))
+  (is (equal '((:properties (:anchor . "a1") (:tag . "tag:yaml.org,2002:seq"))
+	       (:content . ((:alias . "a1")
+			    ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "foo")))))
+	     (nserialize (gen-shared-sequence2))))
+  (is (equal `((:properties (:tag . "tag:yaml.org,2002:map"))
+	       (:content . (:mapping (((:properties (:anchor . "a1") (:tag . "tag:yaml.org,2002:str")) (:content . "foo"))
+				      . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
+				     (((:properties) (:content . "baz"))
+				      . (:alias . "a1")))))
+	     (nserialize (gen-shared-mapping1)))))
+
+
+      
