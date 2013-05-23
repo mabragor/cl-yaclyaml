@@ -19,6 +19,7 @@
 	       (:file "parsing")
 	       (:file "composing")
 	       (:file "constructing")
+	       (:file "serializing")
 	       ;; (:file "cl-yaclyaml-new")
                ;; (:file "cl-yaclyaml")
                ;; (:file "cl-yaclyaml-t")))
