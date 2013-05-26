@@ -12,7 +12,8 @@
   :author "Alexander Popolitov <popolit@itep.ru>"
   :license "GPL"
   :depends-on (#:iterate #:rutils #:cl-test-more #:cl-interpol
-			 #:esrap #:alexandria #:yaclanapht #:cl-ppcre #:defmacro-enhance #:parse-number)
+			 #:esrap #:alexandria #:yaclanapht #:cl-ppcre #:defmacro-enhance #:parse-number
+			 #:cl-emit)
   :components ((:file "package")
 	       (:file "esrap-parser-basics")
 	       (:file "macro-utils")
@@ -21,6 +22,7 @@
 	       (:file "constructing")
 	       (:file "representing")
 	       (:file "serializing")
+	       (:file "presenting")
 	       ;; (:file "cl-yaclyaml-new")
                ;; (:file "cl-yaclyaml")
                ;; (:file "cl-yaclyaml-t")))
