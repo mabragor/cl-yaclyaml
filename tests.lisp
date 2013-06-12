@@ -598,4 +598,13 @@ omitted value:,\n: omitted key,'':'',\n}")))
 
 (test presentation
   (is (equal (list #\newline "   ")
-	     (let ((cl-yaclyaml::n 3)) (yaclyaml-emit 'cl-yaclyaml::b-break)))))
+	     (let ((cl-yaclyaml::n 3)) (yaclyaml-emit 'cl-yaclyaml::b-break))))
+  (is (equal "\"asdf\""
+	     (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar "asdf")))
+  (is (equal "\"as\\\"d\\\\f\""
+	     (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar "as\"d\\f")))
+  (is (equal "\"\\x01\""
+	     (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar (string (code-char 1)))))
+
+  )
+  

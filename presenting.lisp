@@ -17,3 +17,28 @@
 
 (define-emit-rule indent () ((make-string n :initial-element #\space)) ((>= n 0)))
 (define-emit-rule b-break () ((list #\newline (descend 'indent))))
+
+(define-emit-rule double-esc-char x
+  ((list #\\ x))
+  ((member x '(#\\ #\") :test #'char=)))
+
+(define-emit-rule double-np-char x
+  ((let ((code (char-code x)))
+     (cond ((< code (expt 2 8)) (format nil "\\x~2,'0x" code))
+	   ((< code (expt 2 16)) (format nil "\\u~4,'0x" code))
+	   ((< code (expt 2 32)) (format nil "\\U~8,'0x" code))
+	   (t (fail-emit "Char code ~a too big to express as 32-bit escaped char" code)))))
+  ((not (c-printable-p x))))
+
+(define-emit-rule double-printable-char x
+  (x)
+  ((c-printable-p x)))
+
+(define-emit-rule double-quoted-scalar str
+  ((text (iter (for char in-string str)
+	       (collect (|| (descend 'double-esc-char char)
+			    (descend 'double-printable-char char)
+			    (descend 'double-np-char char))
+		 into res)
+	       (finally (return `(#\" ,. res #\"))))))
+  ((stringp str)))
