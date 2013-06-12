@@ -595,3 +595,7 @@ omitted value:,\n: omitted key,'':'',\n}")))
 				     (((:properties) (:content . "baz"))
 				      . (:alias . "a1")))))
 	     (nserialize (gen-shared-mapping1)))))
+
+(test presentation
+  (is (equal (list #\newline "   ")
+	     (let ((cl-yaclyaml::n 3)) (yaclyaml-emit 'cl-yaclyaml::b-break)))))

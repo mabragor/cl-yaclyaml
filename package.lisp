@@ -6,9 +6,10 @@
 
 (defpackage #:cl-yaclyaml
   (:use #:cl #:iterate #:rutils.string #:esrap-parser-basics #:esrap #:defmacro-enhance #:parse-number #:cl-ppcre
-	#:cl-emit)
+	#:cl-emit #:rutils.symbol)
   (:shadowing-import-from #:cl-test-more
                           :ok :plan :finalize :is :isnt :is-expand :diag)
   (:shadowing-import-from #:alexandria #:flatten)
   (:export #:yaclyaml-parse #:ncompose-representation-graph #:construct #:yaml-load #:hash->assoc #:yaml-simple-load
-	   #:nserialize #:represent-node))
+	   #:nserialize #:represent-node
+	   #:yaclyaml-emit))
