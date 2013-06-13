@@ -648,3 +648,25 @@ omitted value:,\n: omitted key,'':'',\n}")))
 		   (cl-yaclyaml::n 7))
 	       (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar #?"aa\n\naaaaaaaaaaaaaaaaaaaaaaaaa"))))
   )
+
+(test single-quoted-line-wrapping
+      (is (equal "'asdf'"
+		 (yaclyaml-emit 'cl-yaclyaml::single-quoted-scalar "asdf")))
+      (is (equal "'as''df'"
+		 (yaclyaml-emit 'cl-yaclyaml::single-quoted-scalar "as'df")))
+      (is (equal "'asaaaa
+  aaa
+  aa''df'"
+		 (let ((cl-yaclyaml::*line-breaking-style* :simple)
+		       (cl-yaclyaml::*min-line-length* 3)
+		       (cl-yaclyaml::n 2)
+		       (cl-yaclyaml::*max-line-length* 5))
+		   (yaclyaml-emit 'cl-yaclyaml::single-quoted-scalar "asaaaa aaa aa'df"))))
+      (is (equal "'asaaaa
+ aaa aa''df'"
+		 (let ((cl-yaclyaml::*line-breaking-style* :simple)
+		       (cl-yaclyaml::*min-line-length* 3)
+		       (cl-yaclyaml::n 1)
+		       (cl-yaclyaml::*max-line-length* 5))
+		   (yaclyaml-emit 'cl-yaclyaml::single-quoted-scalar "asaaaa aaa aa'df")))))
+      

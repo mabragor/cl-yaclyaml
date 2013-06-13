@@ -28,6 +28,10 @@
   ((list #\\ x))
   ((member x '(#\\ #\") :test #'char=)))
 
+(define-emit-rule single-esc-char x
+  ((declare (ignore x)) "''")
+  ((char= x #\')))
+
 (define-emit-rule double-np-char x
   ((let ((code (char-code x)))
      (cond ((< code (expt 2 8)) (format nil "\\x~2,'0x" code))
@@ -51,6 +55,25 @@
 
 (defparameter *line-breaking-style* :none)
 
+(defmacro tackle-newlines (char-var)
+  `(if (char= ,char-var #\newline)
+       (let ((nchars 1))
+	 (iter (while (< pos (1- length)))
+	       (if (equal (and (setf char-picked-p t)
+			       (in outer (next ,char-var)))
+			  #\newline)
+		   (incf nchars)
+		   (terminate)))
+	 (setf current-line-length 0)
+	 (descend 'double-line-breaks nchars))
+       (fail-emit)))
+
+(defmacro next-char-if-not-picked (char-var)
+  `(if (not char-picked-p)
+       (next ,char-var)
+       (setf char-picked-p nil)))
+
+
 (define-emit-rule double-quoted-scalar str
   ((let (char-picked-p
 	 (length (length str))
@@ -59,21 +82,9 @@
 				    :none
 				    *line-breaking-style*)))
      (iter outer (generate char in-string str with-index pos)
-	   (if (not char-picked-p)
-	       (next char)
-	       (setf char-picked-p nil))
+	   (next-char-if-not-picked char)
 	   (let ((next-portion (text (|| ;; probably this would be factored out into macro
-				      (if (char= char #\newline)
-					  (let ((nchars 1))
-					    (iter (while (< pos (1- length)))
-						  (if (equal (and (setf char-picked-p t)
-								  (in outer (next char)))
-							     #\newline)
-						      (incf nchars)
-						      (terminate)))
-					    (setf current-line-length 0)
-					    (descend 'double-line-breaks nchars))
-					  (fail-emit))
+				      (tackle-newlines char)
 				      (descend 'double-esc-char char)
 				      (descend 'double-printable-char char)
 				      (descend 'double-np-char char)))))
@@ -95,3 +106,42 @@
 		 (incf current-line-length (length next-portion))))
 	   (finally (return-from outer (text `(#\" ,. res #\")))))))
   ((stringp str)))
+
+
+(define-emit-rule single-quoted-scalar str
+  ((let (char-picked-p
+	 (length (length str))
+	 (current-line-length (1+ n)) ; 1+ is for the preceding doule quote
+	 (*line-breaking-style* (if (or (flow-key-context-p t) (block-key-context-p t))
+				    :none
+				    *line-breaking-style*)))
+     (iter outer (generate char in-string str with-index pos)
+	   (next-char-if-not-picked char)
+	   (case *line-breaking-style*
+	     (:none nil)
+	     ((:simple :strict :word-wise) ; we really have only one option for line folding here
+	      (when (and (>= current-line-length (+ *min-line-length* n))
+			 (>= current-line-length *max-line-length*)
+			 (char= char #\space)
+			 (not (find (char str (1- pos)) '(#\newline #\space #\tab) :test #'char=))
+			 (and (< pos (1- length))
+			      (not (find (char str (1+ pos)) '(#\newline #\space #\tab) :test #'char=))))
+		(collect (descend 'double-b-break #\newline) into res)
+		(setf current-line-length n)
+		(next-iteration)))
+	     (t (fail-emit "Unexpected line-breaking-style ~a" *line-breaking-style*)))
+	   (multiple-value-bind (next-portion new-length)
+	       (|| (let ((content (tackle-newlines char)))
+		     (values content n))
+		   (values (descend 'single-esc-char char) (+ 2 current-line-length))
+		   (values (descend 'double-printable-char char) (+ 1 current-line-length)))
+	     (collect next-portion into res)
+	     (setf current-line-length new-length))
+	   (finally (return-from outer (text `(#\' ,. res #\')))))))
+  ((cond ((not (every #'c-printable-p str)) (fail-emit "can only contain printable characters"))
+	 ((and (or (flow-key-context-p str)
+		   (block-key-context-p str))
+	       (some (lambda (x) (char= x #\newline)) str))
+	  (fail-emit "newlines are not allowed inside implicit keys"))
+	 (t t))))
+
