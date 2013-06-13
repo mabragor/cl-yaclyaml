@@ -605,6 +605,46 @@ omitted value:,\n: omitted key,'':'',\n}")))
 	     (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar "as\"d\\f")))
   (is (equal "\"\\x01\""
 	     (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar (string (code-char 1)))))
-
+  (is (equal #?'"foo\n  \n  bar"'
+	     (let ((cl-yaclyaml::n 2)) (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar #?"foo\nbar"))))
+  (is (equal #?'"foo\\nbar"'
+	     (let ((cl-yaclyaml::n 2) (cl-yaclyaml::context :flow-key))
+	       (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar #?"foo\nbar"))))
   )
-  
+
+
+(test double-line-wrapping
+  (is (equal "\"aaaaaa\\
+  aaaaaaa\\
+  aaaaaaa\\
+  aaaaaaa\""
+	     (let ((cl-yaclyaml::*min-line-length* 5)
+		   (cl-yaclyaml::*max-line-length* 9)
+		   (cl-yaclyaml::*line-breaking-style* :simple)
+		   (cl-yaclyaml::n 2))
+	       (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar "aaaaaaaaaaaaaaaaaaaaaaaaaaa"))))
+  (is (equal "\"aaaa\\
+       aaaaa\\
+       aaaaa\\
+       aaaaa\\
+       aaaaa\\
+       aaa\""
+	     (let ((cl-yaclyaml::*min-line-length* 5)
+		   (cl-yaclyaml::*max-line-length* 9)
+		   (cl-yaclyaml::*line-breaking-style* :simple)
+		   (cl-yaclyaml::n 7))
+	       (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar "aaaaaaaaaaaaaaaaaaaaaaaaaaa"))))
+  (is (equal "\"aa
+       
+       
+       aaaaa\\
+       aaaaa\\
+       aaaaa\\
+       aaaaa\\
+       aaaaa\""
+	     (let ((cl-yaclyaml::*min-line-length* 5)
+		   (cl-yaclyaml::*max-line-length* 9)
+		   (cl-yaclyaml::*line-breaking-style* :simple)
+		   (cl-yaclyaml::n 7))
+	       (yaclyaml-emit 'cl-yaclyaml::double-quoted-scalar #?"aa\n\naaaaaaaaaaaaaaaaaaaaaaaaa"))))
+  )
