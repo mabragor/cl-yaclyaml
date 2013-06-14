@@ -73,75 +73,126 @@
        (next ,char-var)
        (setf char-picked-p nil)))
 
+(defmacro with-in-string-iter (str-var &body body)
+  `(let (char-picked-p
+	 (length (length ,str-var))
+	 (current-line-length (1+ n)) ; 1+ is for the preceding doule quote
+	 (*line-breaking-style* (if (or (flow-key-context-p t) (block-key-context-p t))
+				    :none
+				    *line-breaking-style*)))
+     (iter outer (generate char in-string ,str-var with-index pos)
+	   (next-char-if-not-picked char)
+	   ,@body)))
+
 
 (define-emit-rule double-quoted-scalar str
-  ((let (char-picked-p
-	 (length (length str))
-	 (current-line-length (1+ n)) ; 1+ is for the preceding doule quote
-	 (*line-breaking-style* (if (or (flow-key-context-p t) (block-key-context-p t))
-				    :none
-				    *line-breaking-style*)))
-     (iter outer (generate char in-string str with-index pos)
-	   (next-char-if-not-picked char)
-	   (let ((next-portion (text (|| ;; probably this would be factored out into macro
-				      (tackle-newlines char)
-				      (descend 'double-esc-char char)
-				      (descend 'double-printable-char char)
-				      (descend 'double-np-char char)))))
-	     (case *line-breaking-style*
-	       (:none nil)
-	       (:simple (when (and (>= current-line-length (+ *min-line-length* n))
-				   (>= current-line-length *max-line-length*))
-			  ;; very-very simple - correct is to analyze if NEXT-PORTION begins with whitespace
-			  ;; and to act accordingly
-			  (collect #\\ into res)
-			  (collect (descend 'double-b-break #\newline) into res)
-			  (setf current-line-length n)))
-	       (:strict (fail-emit ":STRICT line breaking style is not yet implemented."))
-	       (:word-wise (fail-emit ":WORD-WISE line breaking style is not yet implemented."))
-	       (t (fail-emit "Unexpected line-breaking-style ~a" *line-breaking-style*)))
-	     (collect next-portion into res)
-	     (if (find #\newline next-portion)
-		 (setf current-line-length n)
-		 (incf current-line-length (length next-portion))))
-	   (finally (return-from outer (text `(#\" ,. res #\")))))))
+  ((with-in-string-iter str
+     (let ((next-portion (text (|| ;; probably this would be factored out into macro
+				(tackle-newlines char)
+				(descend 'double-esc-char char)
+				(descend 'double-printable-char char)
+				(descend 'double-np-char char)))))
+       (case *line-breaking-style*
+	 (:none nil)
+	 (:simple (when (and (>= current-line-length (+ *min-line-length* n))
+			     (>= current-line-length *max-line-length*))
+		    ;; very-very simple - correct is to analyze if NEXT-PORTION begins with whitespace
+		    ;; and to act accordingly
+		    (collect #\\ into res)
+		    (collect (descend 'double-b-break #\newline) into res)
+		    (setf current-line-length n)))
+	 (:strict (fail-emit ":STRICT line breaking style is not yet implemented."))
+	 (:word-wise (fail-emit ":WORD-WISE line breaking style is not yet implemented."))
+	 (t (fail-emit "Unexpected line-breaking-style ~a" *line-breaking-style*)))
+       (collect next-portion into res)
+       (if (find #\newline next-portion)
+	   (setf current-line-length n)
+	   (incf current-line-length (length next-portion))))
+     (finally (return-from outer (text `(#\" ,. res #\"))))))
   ((stringp str)))
 
-
 (define-emit-rule single-quoted-scalar str
-  ((let (char-picked-p
-	 (length (length str))
-	 (current-line-length (1+ n)) ; 1+ is for the preceding doule quote
-	 (*line-breaking-style* (if (or (flow-key-context-p t) (block-key-context-p t))
-				    :none
-				    *line-breaking-style*)))
-     (iter outer (generate char in-string str with-index pos)
-	   (next-char-if-not-picked char)
-	   (case *line-breaking-style*
-	     (:none nil)
-	     ((:simple :strict :word-wise) ; we really have only one option for line folding here
-	      (when (and (>= current-line-length (+ *min-line-length* n))
-			 (>= current-line-length *max-line-length*)
-			 (char= char #\space)
-			 (not (find (char str (1- pos)) '(#\newline #\space #\tab) :test #'char=))
-			 (and (< pos (1- length))
-			      (not (find (char str (1+ pos)) '(#\newline #\space #\tab) :test #'char=))))
-		(collect (descend 'double-b-break #\newline) into res)
-		(setf current-line-length n)
-		(next-iteration)))
-	     (t (fail-emit "Unexpected line-breaking-style ~a" *line-breaking-style*)))
-	   (multiple-value-bind (next-portion new-length)
-	       (|| (let ((content (tackle-newlines char)))
-		     (values content n))
-		   (values (descend 'single-esc-char char) (+ 2 current-line-length))
-		   (values (descend 'double-printable-char char) (+ 1 current-line-length)))
-	     (collect next-portion into res)
-	     (setf current-line-length new-length))
-	   (finally (return-from outer (text `(#\' ,. res #\')))))))
+  ((with-in-string-iter str
+     (case *line-breaking-style*
+       (:none nil)
+       ((:simple :strict :word-wise) ; we really have only one option for line folding here
+	(when (and (>= current-line-length (+ *min-line-length* n))
+		   (>= current-line-length *max-line-length*)
+		   (char= char #\space)
+		   (not (find (char str (1- pos)) '(#\newline #\space #\tab) :test #'char=))
+		   (and (< pos (1- length))
+			(not (find (char str (1+ pos)) '(#\newline #\space #\tab) :test #'char=))))
+	  (collect (descend 'double-b-break #\newline) into res)
+	  (setf current-line-length n)
+	  (next-iteration)))
+       (t (fail-emit "Unexpected line-breaking-style ~a" *line-breaking-style*)))
+     (multiple-value-bind (next-portion new-length)
+	 (|| (let ((content (tackle-newlines char)))
+	       (values content n))
+	     (values (descend 'single-esc-char char) (+ 2 current-line-length))
+	     (values (descend 'double-printable-char char) (+ 1 current-line-length)))
+       (collect next-portion into res)
+       (setf current-line-length new-length))
+     (finally (return-from outer (text `(#\' ,. res #\'))))))
   ((cond ((not (every #'c-printable-p str)) (fail-emit "can only contain printable characters"))
 	 ((and (or (flow-key-context-p str)
 		   (block-key-context-p str))
 	       (some (lambda (x) (char= x #\newline)) str))
 	  (fail-emit "newlines are not allowed inside implicit keys"))
 	 (t t))))
+
+(defun b-char-p (x)
+  (char= x #\newline))
+
+(defun nb-char-p (x)
+  (and (c-printable-p x)
+       (not (b-char-p x)
+	    ;; TODO not byte-order-mark
+	    )))
+
+(defun s-white-p (x)
+  (or (char= x #\tab) (char= x #\space)))
+
+(defun ns-char-p (x)
+  (and (nb-char-p x) (not (s-white-p x))))
+
+(defun c-indicator-p (x)
+  (find x '(#\- #\? #\: #\, #\[ #\] #\{ #\} #\# #\& #\* #\! #\| #\> #\' #\" #\% #\@ #\`) :test #'char=))
+
+;; Will do this some other day.
+;; Now I want to try to tackle non-string data, such as flow collections.
+;; (define-emit-rule plain-scalar str
+;;   ((if-first-time (if (or (and (ns-char-p char) (not (c-indicator-p char)))
+;; 			  (and (find char '(#\? #\: #\-) :test #'char=)
+;; 			       (strictly-followed-by #'ns-plain-safe)))
+;; 		      (collect char into res)
+;; 		      (fail-emit "Invalid character ~a as a first character of plain scalar"))
+;; 		  (multiple-value-bind (next-portion new-length)
+;; 		      (|| (let ((content (tackle-newlines char)))
+;; 			    (values content n))
+;; 			  (values (descend 'double-printable-char char) (+ 1 current-line-length)))
+;; 		    (collect next-portion into res)
+;; 		    (setf current-line-length new-length))
+;; 		  (finally (return-from outer (text res)))))
+;;   ((cond ((not (stringp str)) nil)
+;; 	 ((equal 0 (length str)) (fail-emit "Empty plain scalars are so far not supported."))
+;; 	 (t t))))
+
+(define-emit-rule c-flow-sequence (lst)
+  ((list #\[
+	 (let ((context (in-flow context)))
+	   (iter (for node in lst)
+		 (|| (descend 'ns-flow-pair node)
+		     (descend 'ns-flow-node node))))
+	 #\]))
+  ((consp lst)))
+
+(define-emit-rule c-flow-mapping (lst)
+  ((list #\{
+	 (let ((context (in-flow context)))
+	   (iter (for node in lst)
+		 (|| (descend 'ns-flow-map-implicit-entry node)
+		     (descend 'ns-flow-map-explicit-entry node))))
+	 #\}))
+  ((and (consp lst) (eql (car lst) :mapping))))
 
