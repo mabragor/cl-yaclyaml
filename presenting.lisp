@@ -189,7 +189,6 @@
 			   (setf cur-line nil))
 			 (finally (if cur-line
 				      (push (joinl " " (nreverse cur-line)) lines))
-				  (format t "~s~%" lines)
 				  (return (joinl line-break (nreverse lines)))))))
 	((:strict :word-wise) (fail-emit "Sorry, not yet implemented."))
 	(t (fail-emit "Unexpected line-breaking-style ~a" *line-breaking-style*)))))
@@ -219,6 +218,12 @@
 				      block-out-context
 				      block-in-context) emit-ns-plain-multi-line)
 				 ((or block-key-context flow-key-context) emit-ns-plain-one-line)))
+
+(define-emit-rule flow-scalar str
+  ((|| (descend 'plain-scalar str)
+       (descend 'single-quoted-scalar str)
+       (descend 'double-quoted-scalar str))))
+  
 
 (defun b-char-p (x)
   (char= x #\newline))

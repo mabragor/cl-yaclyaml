@@ -684,5 +684,25 @@ omitted value:,\n: omitted key,'':'',\n}")))
 		   (cl-yaclyaml::*max-line-length* 5))
 	       (yaclyaml-emit 'cl-yaclyaml::plain-scalar #?"fo\nfoo bar baz\nabr acadabra\nverylongline")))))
 
+(test flow-scalars
+  (macrolet ((frob (theor exp)
+	       `(is (equal ,theor
+			   (yaclyaml-emit 'cl-yaclyaml::flow-scalar ,exp))))
+	     (frob-2 (theor exp)
+	       `(is (equal ,theor
+			   (let ((cl-yaclyaml::context :flow-in)) (yaclyaml-emit 'cl-yaclyaml::flow-scalar ,exp))))))
+    (frob "::vector" "::vector")
+    (frob "': - ()'" ": - ()")
+    (frob "Up, up and away!" "Up, up and away!")
+    (frob "-123" "-123")
+    (frob "http://example.com/foo#bar" "http://example.com/foo#bar")
+    (frob-2 "::vector" "::vector")
+    (frob-2 "': - ()'" ": - ()")
+    (frob-2 "'Up, up and away!'" "Up, up and away!")
+    (frob-2 "-123" "-123")
+    (frob-2 "http://example.com/foo#bar" "http://example.com/foo#bar")))
+
+
+
   
   
