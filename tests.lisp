@@ -670,3 +670,19 @@ omitted value:,\n: omitted key,'':'',\n}")))
 		       (cl-yaclyaml::*max-line-length* 5))
 		   (yaclyaml-emit 'cl-yaclyaml::single-quoted-scalar "asaaaa aaa aa'df")))))
       
+(test emit-plain-scalar
+  (is (equal "foo bar baz"
+	     (yaclyaml-emit 'cl-yaclyaml::plain-scalar "foo bar baz")))
+  (signals (error "emit of multi-line plain scalar in *key context didn't signal an error.")
+    (let ((cl-yaclyaml::context :flow-key)) (yaclyaml-emit 'cl-yaclyaml::plain-scalar #?"foo\nbar baz")))
+  (is (equal #?"foo\n  \n  bar\n  \n  \n  baz"
+	     (let ((cl-yaclyaml::n 2)) (yaclyaml-emit 'cl-yaclyaml::plain-scalar #?"foo\nbar\n\nbaz"))))
+  (is (equal #?"fo\n \n foo bar\n baz\n \n abr acadabra\n \n verylongline"
+	     (let ((cl-yaclyaml::*line-breaking-style* :simple)
+		   (cl-yaclyaml::*min-line-length* 3)
+		   (cl-yaclyaml::n 1)
+		   (cl-yaclyaml::*max-line-length* 5))
+	       (yaclyaml-emit 'cl-yaclyaml::plain-scalar #?"fo\nfoo bar baz\nabr acadabra\nverylongline")))))
+
+  
+  

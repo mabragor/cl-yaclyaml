@@ -145,3 +145,82 @@
 	  (fail-emit "newlines are not allowed inside implicit keys"))
 	 (t t))))
 
+(define-emit-rule plain-scalar str
+  ((handler-case (yaclyaml-parse 'emit-ns-plain str)
+     ;; emit errors are just propagated to the top
+     (parse-error () (fail-emit "plain scalar has wrong structure"))))
+  ((stringp str)))
+
+(defun restructure-plain-line (first rest)
+  (let ((cur-word (list first))
+	cur-word-bunch
+	word-bunches)
+    (macrolet ((push-reset-list-acc (acc where reset-with)
+		 `(progn (push (nreverse ,acc) ,where)
+			 (setf ,acc ,reset-with))))
+      (iter (for (white char) in rest)
+	    (if (not white)
+		(push char cur-word)
+		(if (and (equal 1 (length white)) (equal " " (car white)))
+		    ;; we may break the scalar here
+		    (progn (push-reset-list-acc cur-word cur-word-bunch (list char))
+			   (push-reset-list-acc cur-word-bunch word-bunches nil))
+		    ;; we just record current whitespace into the word bunch
+		    (progn (push-reset-list-acc cur-word cur-word-bunch (list char))
+			   (push (text white) cur-word-bunch))))
+	    (finally (push (nreverse cur-word) cur-word-bunch)
+		     (push (nreverse cur-word-bunch) word-bunches)
+		     (return (mapcar #'text (nreverse word-bunches))))))))
+  
+(defun joinl (joinee lst)
+  (format nil (strcat "~{~a~^" joinee "~}") lst))
+
+(defun emit-maybe-with-folding (bunches)
+  (if (or (flow-key-context-p t) (block-key-context-p t)) ; T is just a placeholder for a argument
+      (joinl " " bunches)
+      (case *line-breaking-style*
+	(:none (joinl " " bunches))
+	(:simple (let ((current-line-length -1)
+		       cur-line
+		       lines
+		       (line-break (text (descend 'b-break)))) ; will this work right?
+		   (iter (for bunch in bunches)
+			 (push bunch cur-line)
+			 (incf current-line-length (+ 1 (length bunch)))
+			 (when (and (>= current-line-length (+ *min-line-length* n))
+				    (>= current-line-length *max-line-length*))
+			   (push (joinl " " (nreverse cur-line)) lines)
+			   (setf cur-line nil))
+			 (finally (if cur-line
+				      (push (joinl " " (nreverse cur-line)) lines))
+				  (format t "~s~%" lines)
+				  (return (joinl line-break (nreverse lines)))))))
+	((:strict :word-wise) (fail-emit "Sorry, not yet implemented."))
+	(t (fail-emit "Unexpected line-breaking-style ~a" *line-breaking-style*)))))
+  
+
+(define-rule emit-ns-plain-one-line (and ns-plain-first nb-ns-plain-in-line)
+  (:destructure (first rest)
+		(emit-maybe-with-folding (restructure-plain-line first rest))))
+			
+(define-rule emit-s-flow-folded (+ #\newline)
+  (:lambda (lst)
+    (iter (for i from 0 to (length lst))
+	  (collect (descend 'b-break)))))
+
+(define-rule emit-s-ns-plain-next-line (and emit-s-flow-folded ns-plain-char nb-ns-plain-in-line)
+  (:destructure (newlines first rest)
+		(let ((bunches (restructure-plain-line first rest)))
+		  (list newlines (emit-maybe-with-folding bunches)))))
+		
+(define-rule emit-ns-plain-multi-line (and emit-ns-plain-one-line
+					   (* emit-s-ns-plain-next-line))
+  (:text t))
+		
+
+(define-rule emit-ns-plain (cond ((or flow-out-context
+				      flow-in-context
+				      block-out-context
+				      block-in-context) emit-ns-plain-multi-line)
+				 ((or block-key-context flow-key-context) emit-ns-plain-one-line)))
+
