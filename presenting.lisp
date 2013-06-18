@@ -244,13 +244,17 @@
   (find x '(#\- #\? #\: #\, #\[ #\] #\{ #\} #\# #\& #\* #\! #\| #\> #\' #\" #\% #\@ #\`) :test #'char=))
 
 (define-emit-rule c-flow-sequence (lst)
-  ((list #\[
-	 (let ((context (in-flow context)))
-	   (iter (for node in lst)
-		 (|| (descend 'ns-flow-pair node)
-		     (descend 'ns-flow-node node))))
-	 #\]))
+  ;; very basic way to render a sequence
+  ((text `("[ " ,(joinl ", " (let ((context (in-flow context)))
+			       (iter (for node in lst)
+				     (collect (|| (descend 'ns-flow-pair node)
+						  (descend 'ns-flow-node node))))))
+		" ]")))
   ((consp lst)))
+
+(define-emit-rule alias-node node
+  ((strcat "*" (cdr node)))
+  ((and (consp node) (eql (car node) :alias))))
 
 (define-emit-rule c-flow-mapping (lst)
   ((list #\{

@@ -702,7 +702,6 @@ omitted value:,\n: omitted key,'':'',\n}")))
     (frob-2 "-123" "-123")
     (frob-2 "http://example.com/foo#bar" "http://example.com/foo#bar")))
 
-
-
-  
-  
+(test emit-alias-node
+  (is (equal "*foo"
+	     (yaclyaml-emit 'cl-yaclyaml::alias-node '(:alias . "foo")))))
