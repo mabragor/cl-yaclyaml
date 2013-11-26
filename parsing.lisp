@@ -350,9 +350,6 @@
 (define-rule nb-double-char (|| c-ns-esc-char (progn (! #\\) (! #\") nb-json)))
 (define-rule ns-double-char (progn (! s-white) nb-double-char))
 
-(defmacro progm (start meat end)
-  "Prog Middle."
-  `(progn ,start (prog1 ,meat ,end)))
 
 (define-rule c-double-quoted (text (progm #/" nb-double-text #/")))
 (define-rule nb-double-text (cond-parse ((|| block-key-context flow-key-context) nb-double-one-line)
