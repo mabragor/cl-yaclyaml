@@ -12,6 +12,11 @@
 
 (defmacro!! define-context-forcing-rule (context-name forsee-name &optional (expression forsee-name))
     ()
-  `(define-yaclyaml-rule ,(symbolicate context-name "-" forsee-name) ()
+  `(define-yaclyaml-rule ,(symbolicate context-name (literal-string "-") forsee-name) ()
        (let ((context ,(zs3::keywordify context-name)))
 	 ,expression)))
+
+;; KLUDGE: better to learn how to define alias names for ESRAP contexts
+(defmacro!! define-yy-rule (symbol args &body body)
+    ()
+  `(define-yaclyaml-rule ,symbol ,args ,@body))

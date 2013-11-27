@@ -6,7 +6,7 @@
 (in-package cl-yaclyaml-system)
 
 (defsystem #:cl-yaclyaml
-  :version "0.3"
+  :version "0.5"
   :serial t
   :description "Yet Another Common Lisp YaML processor."
   :author "Alexander Popolitov <popolit@itep.ru>"
@@ -33,7 +33,7 @@
 (defsystem :cl-yaclyaml-tests
   :description "Tests for CL-YACLYAML."
   :licence "GPL"
-  :depends-on (:cl-yaclyaml :eos :cl-interpol)
+  :depends-on (:cl-yaclyaml :fiveam :cl-interpol)
   :components ((:file "tests")))
 
 (defmethod perform ((op test-op) (sys (eql (find-system :cl-yaclyaml))))
