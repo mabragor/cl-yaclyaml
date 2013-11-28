@@ -53,10 +53,9 @@
 (test flow-folded
   (let ((cl-yaclyaml::n 0))
     (is (equal " " (yaclyaml-parse 's-flow-folded #?"\n  ")))
-    (is (equal #?"\n" (yaclyaml-parse 's-flow-folded #?" \n \n  \t ")))))
-
-    (is (equal "a" (yaclyaml-parse 's-flow-folded #?"\n\n  ")))
-    (is (equal "a" (yaclyaml-parse 's-flow-folded #?"\n")))))
+    (is (equal #?"\n" (yaclyaml-parse 's-flow-folded #?" \n \n  \t ")))
+    (is (equal #?"\n" (yaclyaml-parse 's-flow-folded #?"\n\n  ")))
+    (is (equal " " (yaclyaml-parse 's-flow-folded #?"\n")))))
   
 
 (test block-scalar-header
@@ -71,29 +70,32 @@
   (is (equal '((:block-chomping-indicator . "") (:block-indentation-indicator . ""))
 	     (yaclyaml-parse 'c-b-block-header #?" #asdf\n"))))
 
-;; (test literal-block-scalars
-;;   (is (equal #?" explicit\n" (yaclyaml-parse 'c-l-block-scalar #?"|2\n  explicit\n")))
-;;   (is (equal #?"text" (yaclyaml-parse 'c-l-block-scalar #?"|-\ntext\n")))
-;;   (is (equal #?"text\n" (yaclyaml-parse 'c-l-block-scalar #?"|\ntext\n")))
-;;   (is (equal #?"text\n" (yaclyaml-parse 'c-l-block-scalar #?"|+\ntext\n")))
-;;   (is (equal #?"\n\nliteral\n \n\ntext\n"
-;; 	     (yaclyaml-parse 'c-l-block-scalar
-;; 			     #?"|3\n \n  \n  literal\n   \n  \n  text\n\n\n # Comment\n"))))
+(test literal-block-scalars
+  (is (equal #?" explicit\n" (yaclyaml-parse 'c-l-block-scalar #?"|1\n  explicit\n")))
+  (is (equal #?"text" (let ((cl-yaclyaml::n -1))
+			(yaclyaml-parse 'c-l-block-scalar #?"|-\n text\n"))))
+  (is (equal #?"text\n" (let ((cl-yaclyaml::n -1))
+			  (yaclyaml-parse 'c-l-block-scalar #?"|\ntext\n"))))
+  (is (equal #?"text\n" (let ((cl-yaclyaml::n -1))
+			  (yaclyaml-parse 'c-l-block-scalar #?"|+\ntext\n"))))
+  (is (equal #?"\n\nliteral\n \n\ntext\n"
+	     (yaclyaml-parse 'c-l-block-scalar
+			     #?"|2\n \n  \n  literal\n   \n  \n  text\n\n\n # Comment\n"))))
 
-;; (test folded-block-scalars
-;;   (is (equal #?"folded text\n" (yaclyaml-parse 'c-l-block-scalar #?">\n folded text\n\n")))
-;;   (is (equal #?"\nfolded line\nnext line\nlast line\n"
-;; 	     (yaclyaml-parse 'c-l-block-scalar
-;; 			     #?">\n\n folded\n line\n\n next\n line\n\n last\n line\n
-;; # Comment\n")))
-;;   (is (equal #?"foobar\n  * bullet\n  * list\n\n  * lines\n"
-;; 	     (yaclyaml-parse 'c-l-block-scalar
-;; 			     #?">\n foobar\n   * bullet\n   * list\n\n   * lines\n"))))
+(test folded-block-scalars
+  (is (equal #?"folded text\n" (yaclyaml-parse 'c-l-block-scalar #?">\n folded text\n\n")))
+  (is (equal #?"\nfolded line\nnext line\nlast line\n"
+	     (yaclyaml-parse 'c-l-block-scalar
+			     #?">\n\n folded\n line\n\n next\n line\n\n last\n line\n
+# Comment\n")))
+  (is (equal #?"foobar\n  * bullet\n  * list\n\n  * lines\n"
+	     (yaclyaml-parse 'c-l-block-scalar
+			     #?">\n foobar\n   * bullet\n   * list\n\n   * lines\n"))))
       
-;; (test plain-scalars
-;;   (is (equal #?"1st non-empty\n2nd non-empty 3rd non-empty"
-;; 	     (yaclyaml-parse 'ns-plain
-;; 			     #?"1st non-empty\n\n 2nd non-empty \n\t3rd non-empty"))))
+(test plain-scalars-simple
+  (is (equal #?"1st non-empty\n2nd non-empty 3rd non-empty"
+	     (yaclyaml-parse 'ns-plain
+			     #?"1st non-empty\n\n 2nd non-empty \n\t3rd non-empty"))))
 
 (test double-quoted-scalars
   (is (equal "implicit block key" (let ((cl-yaclyaml::context :block-key))
@@ -117,68 +119,74 @@
   	     (yaclyaml-parse 'c-double-quoted
   			     #?"\" 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty \""))))
 
-;; (test single-quoted-scalars
-;;   (is (equal "here's to \"quotes\""
-;; 	     (yaclyaml-parse 'c-single-quoted "'here''s to \"quotes\"'")))
-;;   (is (equal #?" 1st non-empty\n2nd non-empty 3rd non-empty "
-;; 	     (yaclyaml-parse 'c-single-quoted
-;; 			     #?"' 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty '"))))
+(test single-quoted-scalars
+  (is (equal "here's to \"quotes\""
+	     (yaclyaml-parse 'c-single-quoted "'here''s to \"quotes\"'")))
+  (is (equal #?" 1st non-empty\n2nd non-empty 3rd non-empty "
+	     (yaclyaml-parse 'c-single-quoted
+			     #?"' 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty '"))))
   
   
-;; (test flow-sequence-nodes
-;;   (is (equal '(((:properties (:tag . :non-specific)) (:content . "one"))
-;; 	       ((:properties (:tag . :non-specific)) (:content . "two")))
-;; 	     (yaclyaml-parse 'c-flow-sequence #?"[ one, two, ]")))
-;;   (is (equal '(((:properties (:tag . :non-specific)) (:content . "three"))
-;; 	       ((:properties (:tag . :non-specific)) (:content . "four")))
-;; 	     (yaclyaml-parse 'c-flow-sequence #?"[three ,four]")))
-;;   ;; (is (equal '("double quoted" "single quoted" "plain text" ("nested")
-;;   ;; 	       (:mapping ("single" . "pair")))
-;;   ;; 	     (yaclyaml-parse 'c-flow-sequence
-;;   ;; 			     #?"[\n\"double\n quoted\", 'single
-;;   ;;      quoted',\nplain\n text, [ nested ],\nsingle: pair,\n]")))
-;;   )
+(test flow-sequence-nodes
+  (is (equal '(((:properties (:tag . :non-specific)) (:content . "one"))
+	       ((:properties (:tag . :non-specific)) (:content . "two")))
+	     (yaclyaml-parse 'c-flow-sequence #?"[ one, two, ]")))
+  (is (equal '(((:properties (:tag . :non-specific)) (:content . "three"))
+	       ((:properties (:tag . :non-specific)) (:content . "four")))
+	     (yaclyaml-parse 'c-flow-sequence #?"[three ,four]")))
+  ;; (is (equal '("double quoted" "single quoted" "plain text" ("nested")
+  ;; 	       (:mapping ("single" . "pair")))
+  ;; 	     (yaclyaml-parse 'c-flow-sequence
+  ;; 			     #?"[\n\"double\n quoted\", 'single
+  ;;      quoted',\nplain\n text, [ nested ],\nsingle: pair,\n]")))
+  )
 
-;; (test plain-scalars
-;;   (is (equal "::vector"
-;; 	     (let ((cl-yaclyaml::context :block-in))
-;; 	       (yaclyaml-parse 'ns-plain
-;; 			       #?"::vector"))))
-;;   (is (equal "Up, up, and away!"
-;; 	     (let ((cl-yaclyaml::context :block-in))
-;; 	       (yaclyaml-parse 'ns-plain
-;; 			       #?"Up, up, and away!"))))
-;;   (is (equal "-123"
-;; 	     (let ((cl-yaclyaml::context :block-in))
-;; 	       (yaclyaml-parse 'ns-plain
-;; 			       #?"-123"))))
-;;   (is (equal "http://example.com/foo#bar"
-;; 	     (let ((cl-yaclyaml::context :block-in))
-;; 	       (yaclyaml-parse 'ns-plain
-;; 			       #?"http://example.com/foo#bar"))))
-;;   )
+(test plain-scalars
+  (is (equal "::vector"
+	     (let ((cl-yaclyaml::context :block-in))
+	       (yaclyaml-parse 'ns-plain
+			       #?"::vector"))))
+  (is (equal "Up, up, and away!"
+	     (let ((cl-yaclyaml::context :block-in))
+	       (yaclyaml-parse 'ns-plain
+			       #?"Up, up, and away!"))))
+  (is (equal "-123"
+	     (let ((cl-yaclyaml::context :block-in))
+	       (yaclyaml-parse 'ns-plain
+			       #?"-123"))))
+  (is (equal "http://example.com/foo#bar"
+	     (let ((cl-yaclyaml::context :block-in))
+	       (yaclyaml-parse 'ns-plain
+			       #?"http://example.com/foo#bar"))))
+  )
 
-;; (test flow-mapping-nodes
-;;   (is (equal '(:mapping (((:properties (:tag . :non-specific)) (:content . "one"))
-;; 			 . ((:properties (:tag . :non-specific)) (:content . "two")))
-;; 	       (((:properties (:tag . :non-specific)) (:content . "three"))
-;; 			 . ((:properties (:tag . :non-specific)) (:content . "four"))))
-;; 	     (yaclyaml-parse 'c-flow-mapping
-;; 			     #?"{ one : two , three: four , }")))
-;;   (is (equal '(:mapping (((:properties (:tag . :non-specific)) (:content . "five"))
-;; 			 . ((:properties (:tag . :non-specific)) (:content . "six")))
-;; 	       (((:properties (:tag . :non-specific)) (:content . "seven"))
-;; 			 . ((:properties (:tag . :non-specific)) (:content . "eight"))))
-;; 	     (yaclyaml-parse 'c-flow-mapping
-;; 			     #?"{five: six,seven : eight}")))
-;;   (is (equal '(:mapping (((:properties (:tag . :non-specific)) (:content . "explicit"))
-;; 			 . ((:properties (:tag . :non-specific)) (:content . "entry")))
-;; 	       (((:properties (:tag . :non-specific)) (:content . "implicit"))
-;; 			 . ((:properties (:tag . :non-specific)) (:content . "entry")))
-;; 	       (((:properties (:tag . :non-specific)) (:content . :empty))
-;; 		. ((:properties (:tag . :non-specific)) (:content . :empty))))
-;; 	     (yaclyaml-parse 'c-flow-mapping
-;; 			     #?"{\n? explicit: entry,\nimplicit: entry,\n?\n}")))
+(test flow-mapping-nodes-simple
+  (is (equal '(:mapping (((:properties (:tag . :non-specific)) (:content . "one"))
+			 . ((:properties (:tag . :non-specific)) (:content . "two")))
+	       (((:properties (:tag . :non-specific)) (:content . "three"))
+			 . ((:properties (:tag . :non-specific)) (:content . "four"))))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{ one : two , three: four , }")))
+  (is (equal '(:mapping (((:properties (:tag . :non-specific)) (:content . "five"))
+			 . ((:properties (:tag . :non-specific)) (:content . "six")))
+	       (((:properties (:tag . :non-specific)) (:content . "seven"))
+			 . ((:properties (:tag . :non-specific)) (:content . "eight"))))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{five: six,seven : eight}")))
+  (is (equal '(:mapping (((:properties (:tag . :non-specific)) (:content . "explicit"))
+			 . ((:properties (:tag . :non-specific)) (:content . "entry")))
+	       (((:properties (:tag . :non-specific)) (:content . "implicit"))
+			 . ((:properties (:tag . :non-specific)) (:content . "entry")))
+	       (((:properties (:tag . :non-specific)) (:content . :empty))
+		. ((:properties (:tag . :non-specific)) (:content . :empty))))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{\n? explicit: entry,\nimplicit: entry,\n?\n}"))))
+
+(test tags-simple
+  (is (equal '(:tag . "asdf") (yaclyaml-parse 'c-ns-tag-property "!<asdf>")))
+  (signals (esrap-liquid::esrap-error) (yaclyaml-parse 'c-ns-tag-property ":")))
+
+;; (test flow-mapping-nodes-complex
 ;;   (is (equal '(:mapping (((:properties (:tag . :non-specific)) (:content . "unquoted"))
 ;; 			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "separate")))
 ;; 	       (((:properties (:tag . :non-specific)) (:content . "http://foo.com"))
@@ -191,74 +199,82 @@
 ;; 		. ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ""))))
 ;; 	     (yaclyaml-parse 'c-flow-mapping
 ;; 			     #?"{\nunquoted : \"separate\",\nhttp://foo.com,
-;; omitted value:,\n: omitted key,'':'',\n}")))
-;;   (is (equal '(:mapping (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "adjacent"))
-;; 			 . ((:properties (:tag . :non-specific)) (:content . "value")))
-;; 	       (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "readable"))
-;; 		. ((:properties (:tag . :non-specific)) (:content . "value")))
-;; 	       (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "empty"))
-;; 			 . ((:properties (:tag . :non-specific)) (:content . :empty))))
-;; 	     (yaclyaml-parse 'c-flow-mapping
-;; 			     #?"{\n\"adjacent\":value,\n\"readable\": value,\n\"empty\":\n}")))
-;;   (is (equal '((:mapping (((:properties (:tag . :non-specific)) (:content . "foo"))
-;; 			  . ((:properties (:tag . :non-specific)) (:content . "bar")))))
-;; 	     (yaclyaml-parse 'c-flow-sequence
-;; 			     #?"[\nfoo: bar\n]")))
-;;   (is (equal '((:mapping (((:properties (:tag . :non-specific)) (:content . "foo bar"))
-;; 			  . ((:properties (:tag . :non-specific)) (:content . "baz")))))
-;; 	     (yaclyaml-parse 'c-flow-sequence
-;; 			     #?"[\n? foo\n bar : baz\n]")))
-;;   (is (equal '((:mapping (((:properties (:tag . :non-specific)) (:content . "YAML"))
-;; 			  . ((:properties (:tag . :non-specific)) (:content . "separate")))))
-;; 	     (yaclyaml-parse 'c-flow-sequence
-;; 			     #?"[ YAML : separate ]")))
-;;   (is (equal '((:mapping (((:properties (:tag . :non-specific)) (:content . :empty))
-;; 			  . ((:properties (:tag . :non-specific)) (:content . "empty key entry")))))
-;; 	     (yaclyaml-parse 'c-flow-sequence
-;; 			     #?"[ : empty key entry ]")))
-;;   (is (equal '((:mapping (((:properties (:tag . :non-specific))
-;; 			   (:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "JSON"))
-;; 						  . ((:properties (:tag . :non-specific)) (:content . "like"))))))
-;; 			  . ((:properties (:tag . :non-specific)) (:content . "adjacent")))))
-;; 	     (yaclyaml-parse 'c-flow-sequence
-;; 			     #?"[ {JSON: like}:adjacent ]")))
-;;   )
+;; omitted value:,\n: omitted key,'':'',\n}"))))
 
-;; (test block-sequences
-;;   (is (equal `(((:properties (:tag . :non-specific)) (:content . "foo"))
-;; 	       ((:properties (:tag . :non-specific)) (:content . "bar"))
-;; 	       ((:properties (:tag . :non-specific)) (:content . "baz")))
-;; 	     (yaclyaml-parse 'l+block-sequence #?"- foo\n- bar\n- baz\n")))
-;;   (is (equal `(((:properties (:tag . :non-specific))
-;; 		(:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "one"))
-;; 				       . ((:properties (:tag . :non-specific)) (:content . "two")))))))
-;; 	     (yaclyaml-parse 'l+block-sequence #?"- one: two # compact mapping\n")))
-;;   (is (equal `(:mapping (((:properties (:tag . :non-specific)) (:content . "block sequence"))
-;; 			 . ((:properties (:tag . :non-specific))
-;; 			    (:content . (((:properties (:tag . :non-specific)) (:content . "one"))
-;; 					 ((:properties (:tag . :non-specific))
-;; 					  (:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "two"))
-;; 								 . ((:properties (:tag . :non-specific))
-;; 								    (:content . "three")))))))))))
-;;   	     (yaclyaml-parse 'l+block-mapping #?"block sequence:\n  - one\n  - two : three\n")))
-;;   (is (equal `(((:properties (:tag . :non-specific)) (:content . :empty))
-;; 	       ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ,#?"block node\n"))
-;; 	       ((:properties (:tag . :non-specific))
-;; 		(:content . (((:properties (:tag . :non-specific)) (:content . "one"))
-;; 			     ((:properties (:tag . :non-specific)) (:content . "two")))))
-;; 	       ((:properties (:tag . :non-specific))
-;; 		(:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "one"))
-;; 				       . ((:properties (:tag . :non-specific)) (:content . "two")))))))
-;;   	     (yaclyaml-parse 'l+block-sequence
-;;   			     #?"- # Empty\n- |\n block node\n- - one # Compact\n  - two # sequence\n- one: two\n")))
-;;   )
+(test flow-mapping-nodes-next
+  (is (equal '(:mapping (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "adjacent"))
+			 . ((:properties (:tag . :non-specific)) (:content . "value")))
+	       (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "readable"))
+		. ((:properties (:tag . :non-specific)) (:content . "value")))
+	       (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "empty"))
+			 . ((:properties (:tag . :non-specific)) (:content . :empty))))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{\n\"adjacent\":value,\n\"readable\": value,\n\"empty\":\n}")))
+  (is (equal '((:mapping (((:properties (:tag . :non-specific)) (:content . "foo"))
+			  . ((:properties (:tag . :non-specific)) (:content . "bar")))))
+	     (yaclyaml-parse 'c-flow-sequence
+			     #?"[\nfoo: bar\n]")))
+  (is (equal '((:mapping (((:properties (:tag . :non-specific)) (:content . "foo bar"))
+			  . ((:properties (:tag . :non-specific)) (:content . "baz")))))
+	     (yaclyaml-parse 'c-flow-sequence
+			     #?"[\n? foo\n bar : baz\n]")))
+  (is (equal '((:mapping (((:properties (:tag . :non-specific)) (:content . "YAML"))
+			  . ((:properties (:tag . :non-specific)) (:content . "separate")))))
+	     (yaclyaml-parse 'c-flow-sequence
+			     #?"[ YAML : separate ]")))
+  (is (equal '((:mapping (((:properties (:tag . :non-specific)) (:content . :empty))
+			  . ((:properties (:tag . :non-specific)) (:content . "empty key entry")))))
+	     (yaclyaml-parse 'c-flow-sequence
+			     #?"[ : empty key entry ]")))
+  (is (equal '((:mapping (((:properties (:tag . :non-specific))
+			   (:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "JSON"))
+						  . ((:properties (:tag . :non-specific)) (:content . "like"))))))
+			  . ((:properties (:tag . :non-specific)) (:content . "adjacent")))))
+	     (yaclyaml-parse 'c-flow-sequence
+			     #?"[ {JSON: like}:adjacent ]")))
+  )
+
+(test block-sequences
+  (is (equal `(((:properties (:tag . :non-specific)) (:content . "foo"))
+	       ((:properties (:tag . :non-specific)) (:content . "bar"))
+	       ((:properties (:tag . :non-specific)) (:content . "baz")))
+	     (let ((cl-yy::n -1))
+	       (yaclyaml-parse 'l+block-sequence #?"- foo\n- bar\n- baz\n"))))
+  (is (equal `(((:properties (:tag . :non-specific))
+		(:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "one"))
+				       . ((:properties (:tag . :non-specific)) (:content . "two")))))))
+	     (let ((cl-yy::n -1))
+	       (yaclyaml-parse 'l+block-sequence #?"- one: two # compact mapping\n"))))
+  (is (equal `(((:properties (:tag . :non-specific)) (:content . :empty))
+	       ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ,#?"block node\n"))
+	       ((:properties (:tag . :non-specific))
+		(:content . (((:properties (:tag . :non-specific)) (:content . "one"))
+			     ((:properties (:tag . :non-specific)) (:content . "two")))))
+	       ((:properties (:tag . :non-specific))
+		(:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "one"))
+				       . ((:properties (:tag . :non-specific)) (:content . "two")))))))
+  	     (let ((cl-yy::n -1))
+	       (yaclyaml-parse 'l+block-sequence
+			       #?"- # Empty\n- |\n block node\n- - one # Compact\n  - two # sequence\n- one: two\n")))))
+
+  ;; (is (equal `(:mapping (((:properties (:tag . :non-specific)) (:content . "block sequence"))
+  ;; 			 . ((:properties (:tag . :non-specific))
+  ;; 			    (:content . (((:properties (:tag . :non-specific)) (:content . "one"))
+  ;; 					 ((:properties (:tag . :non-specific))
+  ;; 					  (:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "two"))
+  ;; 								 . ((:properties (:tag . :non-specific))
+  ;; 								    (:content . "three")))))))))))
+  ;; 	     (let ((cl-yy::n -1))
+  ;; 	       (yaclyaml-parse 'l+block-mapping #?"block sequence:\n  - one\n  - two : three\n")))))
+
 
 ;; (test block-mappings
 ;;   (is (equal `(:mapping (((:properties (:tag . :non-specific)) (:content . "block mapping"))
 ;; 			 . ((:properties (:tag . :non-specific))
 ;; 			    (:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "key"))
 ;; 						   . ((:properties (:tag . :non-specific)) (:content . "value"))))))))
-;; 	     (yaclyaml-parse 'l+block-mapping #?"block mapping:\n key: value\n")))
+;; 	     (let ((cl-yy::n -1))
+;; 	       (yaclyaml-parse 'l+block-mapping #?"block mapping:\n key: value\n")))))
 ;;   (is (equal `(:mapping (((:properties (:tag . :non-specific)) (:content . "explicit key"))
 ;; 			 . ((:properties (:tag . :non-specific)) (:content . :empty))))
 ;; 	     (yaclyaml-parse 'l+block-mapping #?"? explicit key # Empty value\n")))

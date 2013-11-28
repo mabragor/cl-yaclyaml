@@ -285,7 +285,7 @@
 ;; ;; Directives (finally, something non-trivial)
 
 (define-yy-rule l-directive ()
-  #/%
+  #\%
   (prog1 (|| ns-yaml-directive
 	     ns-tag-directive
 	     ns-reserved-directive)
@@ -348,13 +348,13 @@
       c-secondary-tag-handle
       c-primary-tag-handle))
 (define-yy-rule c-primary-tag-handle ()
-  #/! :primary-tag-handle)
+  #\! :primary-tag-handle)
 (define-yy-rule c-secondary-tag-handle ()
   "!!" :secondary-tag-handle)
 (define-yy-rule c-named-tag-handle ()
-  `(:named-tag-handle ,(text (progn #/!
-				    (prog1 (+ ns-word-char)
-				      #/!)))))
+  `(:named-tag-handle ,(text (progn #\!
+				    (prog1 (postimes ns-word-char)
+				      #\!)))))
 		
 
 (define-yy-rule ns-tag-prefix ()
@@ -365,7 +365,7 @@
 (define-yy-rule ns-global-tag-prefix ()
   (list ns-tag-char (times ns-uri-char)))
   
-;; ;;; Node properties
+;;; Node properties
 
 (define-yy-rule c-ns-properties ()
   `(:properties ,@(remove-if-not #'identity
@@ -394,7 +394,7 @@
   `(:tag .  ,(progn "!" :vanilla)))
 
 (define-yy-rule c-ns-anchor-property ()
-  `(:anchor . ,(text (progn #/& ns-anchor-name))))
+  `(:anchor . ,(text (progn #\& ns-anchor-name))))
 (define-yy-rule ns-anchor-char ()
   (! c-flow-indicator)
   ns-char)
@@ -608,7 +608,7 @@
 				    
 (define-yy-rule s-nb-folded-text ()
   s-indent-=n
-  (list ns-char (* nb-char)))
+  (list ns-char (times nb-char)))
 (define-yy-rule l-nb-folded-lines ()
   (list s-nb-folded-text
 	(times (list b-l-folded s-nb-folded-text))))

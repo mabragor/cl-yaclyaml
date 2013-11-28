@@ -1,6 +1,7 @@
 ;;;; package.lisp
 
 (defpackage #:cl-yaclyaml
+  (:nicknames #:cl-yy)
   (:use #:cl #:iterate #:rutils.string
 	#:esrap-liquid #:defmacro-enhance #:cl-read-macro-tokens
 	#:parse-number #:cl-ppcre)
