@@ -1,12 +1,13 @@
 (in-package :cl-user)
 
 (defpackage :cl-yaclyaml-tests
-  (:use :alexandria :cl :cl-yaclyaml :fiveam :iterate)
+  (:use :alexandria :cl :cl-yaclyaml :fiveam :iterate :cl-read-macro-tokens)
   (:export #:run-tests))
 
 (in-package :cl-yaclyaml-tests)
 
 (cl-interpol:enable-interpol-syntax)
+(enable-read-macro-tokens)
 
 (def-suite yaclyaml)
 (in-suite yaclyaml)
@@ -16,6 +17,47 @@
     (fiveam:explain! results)
     (unless (fiveam:results-status results)
       (error "Tests failed."))))
+
+(test basic
+  (is (equal #\tab (yaclyaml-parse 's-white #?"\t")))
+  (is (equal #\space (yaclyaml-parse 's-white #?" ")))
+  (is (equal nil (yaclyaml-parse 's-white #?"a" :junk-allowed t)))
+  (is (equal '(#\tab #\space #\tab) (yaclyaml-parse 's-separate-in-line #?"\t \t")))
+  (is (equal nil (yaclyaml-parse 's-separate-in-line #?"")))
+  (is (equal nil (yaclyaml-parse 's-separate-in-line #?"\n" :start 1))))
+
+(test indents
+  (let ((cl-yaclyaml::n 5)
+	(cl-yaclyaml::indent-style :determined))
+    (is (equal 3 (yaclyaml-parse 's-indent-<n "   ")))
+    (is (equal 4 (yaclyaml-parse 's-indent-<n "    ")))
+    (signals (esrap-liquid::esrap-error) (yaclyaml-parse 's-indent-<n "     "))
+    (is (equal 5 (yaclyaml-parse 's-indent-<=n "     ")))
+    (signals (esrap-liquid::esrap-error) (yaclyaml-parse 's-indent-<n "      "))
+    (signals (esrap-liquid::esrap-error) (yaclyaml-parse 's-indent-=n "   "))
+    (is (equal 5 (yaclyaml-parse 's-indent-=n "     ")))
+    (signals (esrap-liquid::esrap-error) (yaclyaml-parse 's-indent-=n "       "))))
+
+(test flow-line-prefix
+  (let ((cl-yaclyaml::n 0))
+    (is (equal '(0 (#\space #\space #\space)) (yaclyaml-parse 's-flow-line-prefix #?"   ")))
+    (is (equal '(0 (#\tab #\space #\space)) (yaclyaml-parse 's-flow-line-prefix #?"\t  ")))
+  (let ((cl-yaclyaml::n 2))
+    (is (equal '(2 (#\space)) (yaclyaml-parse 's-flow-line-prefix #?"   ")))
+    (signals (esrap-liquid::esrap-error) (yaclyaml-parse 's-flow-line-prefix #?"\t  ")))))
+
+(test b-l-folded
+  (is (equal #?"\n\n\n" (let ((cl-yaclyaml::context :flow-out))
+			  (yaclyaml-parse 'b-l-folded #?"\n  \n \n\n")))))
+
+(test flow-folded
+  (let ((cl-yaclyaml::n 0))
+    (is (equal " " (yaclyaml-parse 's-flow-folded #?"\n  ")))
+    (is (equal #?"\n" (yaclyaml-parse 's-flow-folded #?" \n \n  \t ")))))
+
+    (is (equal "a" (yaclyaml-parse 's-flow-folded #?"\n\n  ")))
+    (is (equal "a" (yaclyaml-parse 's-flow-folded #?"\n")))))
+  
 
 (test block-scalar-header
   (is (equal '((:block-indentation-indicator . "3") (:block-chomping-indicator . "-"))
@@ -28,7 +70,6 @@
 	     (yaclyaml-parse 'c-b-block-header #?"3 #asdf\n")))
   (is (equal '((:block-chomping-indicator . "") (:block-indentation-indicator . ""))
 	     (yaclyaml-parse 'c-b-block-header #?" #asdf\n"))))
-
 
 ;; (test literal-block-scalars
 ;;   (is (equal #?" explicit\n" (yaclyaml-parse 'c-l-block-scalar #?"|2\n  explicit\n")))
@@ -54,27 +95,27 @@
 ;; 	     (yaclyaml-parse 'ns-plain
 ;; 			     #?"1st non-empty\n\n 2nd non-empty \n\t3rd non-empty"))))
 
-;; (test double-quoted-scalars
-;;   (is (equal "implicit block key" (let ((cl-yaclyaml::context :block-key))
-;; 				    (yaclyaml-parse 'c-double-quoted "\"implicit block key\""))))
-;;   (is (equal "implicit flow key" (let ((cl-yaclyaml::context :flow-key))
-;; 				   (yaclyaml-parse 'c-double-quoted "\"implicit flow key\""))))
-;;   (is (equal #?"folded to a space"
-;; 	     (yaclyaml-parse 'c-double-quoted
-;; 			     #?"\"folded \nto a space\"")))
-;;   (is (equal #?",\nto a line feed"
-;;   	     (yaclyaml-parse 'c-double-quoted
-;;   			     #?"\",\t\n \nto a line feed\"")))
-;;   (is (equal #?"or \t \tnon-content"
-;;   	     (yaclyaml-parse 'c-double-quoted
-;;   			     #?"\"or \t\\\n \\ \tnon-content\"")))
-;;   ;; and all the above components together
-;;   (is (equal #?"folded to a space,\nto a line feed, or \t \tnon-content"
-;;   	     (yaclyaml-parse 'c-double-quoted
-;;   			     #?"\"folded \nto a space,\t\n \nto a line feed, or \t\\\n \\ \tnon-content\"")))
-;;   (is (equal #?" 1st non-empty\n2nd non-empty 3rd non-empty "
-;;   	     (yaclyaml-parse 'c-double-quoted
-;;   			     #?"\" 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty \""))))
+(test double-quoted-scalars
+  (is (equal "implicit block key" (let ((cl-yaclyaml::context :block-key))
+				    (yaclyaml-parse 'c-double-quoted "\"implicit block key\""))))
+  (is (equal "implicit flow key" (let ((cl-yaclyaml::context :flow-key))
+				   (yaclyaml-parse 'c-double-quoted "\"implicit flow key\""))))
+  (is (equal #?"folded to a space"
+	     (yaclyaml-parse 'c-double-quoted
+			     #?"\"folded \nto a space\"")))
+  (is (equal #?",\nto a line feed"
+  	     (yaclyaml-parse 'c-double-quoted
+  			     #?"\",\t\n \nto a line feed\"")))
+  (is (equal #?"or \t \tnon-content"
+  	     (yaclyaml-parse 'c-double-quoted
+  			     #?"\"or \t\\\n \\ \tnon-content\"")))
+  ;; and all the above components together
+  (is (equal #?"folded to a space,\nto a line feed, or \t \tnon-content"
+  	     (yaclyaml-parse 'c-double-quoted
+  			     #?"\"folded \nto a space,\t\n \nto a line feed, or \t\\\n \\ \tnon-content\"")))
+  (is (equal #?" 1st non-empty\n2nd non-empty 3rd non-empty "
+  	     (yaclyaml-parse 'c-double-quoted
+  			     #?"\" 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty \""))))
 
 ;; (test single-quoted-scalars
 ;;   (is (equal "here's to \"quotes\""

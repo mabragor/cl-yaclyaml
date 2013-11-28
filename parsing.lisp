@@ -7,7 +7,7 @@
 ;;; Parsing presentation stream
 
 (register-yaclyaml-context n nil)
-(setf n -1)
+(setf n 0)
 (register-yaclyaml-context indent-style determined autodetect)
 (register-yaclyaml-context context block-out block-in flow-out flow-in block-key flow-key)
 (register-yaclyaml-context block-scalar-chomping clip keep strip)
@@ -225,7 +225,7 @@
 (define-yy-rule b-l-trimmed ()
   b-break
   (make-string (length (postimes l-empty))
-	       :initial-element #\newline))
+	       :initial-element (literal-char #\newline)))
 
 (define-yy-rule b-as-space ()
   b-break
@@ -567,11 +567,14 @@
   (define-yy-rule c-l-block-scalar ()
     (macrolet ((call-parser ()
 		 `(text block-scalar-content)))
-      (let ((header (progn (|| "|" ">") c-b-block-header)))
+      (let ((header (list (|| "|" ">") c-b-block-header)))
 	(let ((block-scalar-chomping (cdr (assoc (cdr (assoc :block-chomping-indicator
 							     (cadr header)))
-						 chomping-map :test #'equal)))
-	      (block-scalar-style (cdr (assoc (car header) style-map :test #'equal))))
+						 chomping-map
+						 :test #'equal)))
+	      (block-scalar-style (cdr (assoc (car header)
+					      style-map
+					      :test #'equal))))
 	  (let ((it (cdr (assoc :block-indentation-indicator
 				(cadr header)))))
 	    (if (not (equal it ""))
@@ -647,8 +650,8 @@
   (! c-flow-indicator)
   ns-char)
 (define-yy-rule ns-plain-char ()
-  (cond-parse ((list (! #/:) (! #/#)) ns-plain-safe)
-	      ((<- ns-char) #/#)
+  (cond-parse ((list (! #\:) (! #\#)) ns-plain-safe)
+	      ((<- ns-char) #\#)
 	      (t (prog1 #\: (-> ns-plain-safe)))))
   
 (define-yy-rule ns-plain ()
