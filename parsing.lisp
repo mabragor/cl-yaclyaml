@@ -337,6 +337,7 @@
 	 (sep1 s-separate-in-line)
 	 (prefix ns-tag-prefix))
     (declare (ignore tag sep sep1))
+    (format t (literal-string "got tag directive: ~a ~a~%") handle prefix)
     (if (gethash handle tag-handles)
 	(fail-parse "The TAG directive must be given at most once per handle in the same document.")
 	(setf (gethash handle tag-handles) prefix))
@@ -969,7 +970,7 @@
 (define-yy-rule ns-flow-properties-node ()
   `(,c-ns-properties
     (:content . ,(|| (progn s-separate ns-flow-content)
-		     (tag :yaml e-scalar)))))
+		     (list :yaml e-scalar)))))
 
 ;;; YaML documents
 
@@ -995,6 +996,7 @@
   (let ((text (times (list (! c-forbidden)
 			   (list (times nb-char)
 				 (? b-break))))))
+    ;; (format t (literal-string "text: ~a~%") text)
     (let ((n -1)
 	  (indent-style :determined)
 	  (context :block-in))
@@ -1022,7 +1024,7 @@
       ;; (format t "~a ~a ~a~%" handle prefix position)
       (if prefix
 	  (let ((pos (position prefix path :test #'equal)))
-	    (if (and pos position)
+	    (if (and pos position (not (equal 0 pos)))
 		(error "Loop in prefixes resolution: ~a~%" `(,@(subseq path pos) ,prefix))
 		(strcat (gethash (if (atom prefix)
 				     prefix
@@ -1033,16 +1035,22 @@
 	  handle)))
 
   (defun compile-tag-handles ()
+    (format t "handles: ~a ~%" (hash->assoc tag-handles))
     (iter (for (key . nil) in (hash->assoc tag-handles))
+	  ;; (format t "handle: ~a ~%" key)
 	  (let ((path `(,key)))
 	    (declare (special path))
 	    (iter (while t)
 		  (let ((val (gethash key tag-handles)))
+		    ;; (format t "value: ~a ~%" val)
 		    (let ((try-val (try-resolve val)))
 		      (if (equal try-val val)
 			  (terminate)
 			  (setf (gethash key tag-handles) try-val
-				val try-val)))))))))
+				val try-val
+				path (cons try-val path))))))))
+    (format t "compiled handles: ~a ~%" (hash->assoc tag-handles))))
+
 
 (define-yy-rule %l-directive-document ()
   (postimes l-directive)

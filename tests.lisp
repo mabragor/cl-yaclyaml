@@ -409,138 +409,157 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 	     (let ((cl-yy::n -1))
 	       (yaclyaml-parse 'l+block-sequence #?"- sun: yellow\n- ? earth: blue\n  : moon: white\n")))))
 
-;; (test node-properties
-;;   (is (equal `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str") (:anchor . "a1")) (:content . "foo"))
-;; 			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
-;; 			(((:properties (:tag . :non-specific) (:anchor . "a2")) (:content . "baz"))
-;; 			 . (:alias . "a1")))
-;; 	     (yaclyaml-parse 'l+block-mapping #?"!!str &a1 \"foo\":\n  !!str bar\n&a2 baz : *a1\n"))))
+(test node-properties
+  (is (equal `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str") (:anchor . "a1")) (:content . "foo"))
+			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
+			(((:properties (:tag . :non-specific) (:anchor . "a2")) (:content . "baz"))
+			 . (:alias . "a1")))
+	     (let ((cl-yy::n -1))
+	       (yaclyaml-parse 'l+block-mapping #?"!!str &a1 \"foo\":\n  !!str bar\n&a2 baz : *a1\n")))))
 
-;; (test bare-document  
-;;   (is (equal '((:document ((:properties (:tag . :non-specific)) (:content . "Bare document"))) 14)
-;; 	     (multiple-value-list (yaclyaml-parse 'l-bare-document
-;; 						  #?"Bare document\n...\n# No document\n...\n|\n%!PS-Adobe-2.0 # Not the first line\n" :junk-allowed t))))
-;;   ;; (is (equal '("Bare document" 14)
-;;   ;; 	     (multiple-value-list (yaclyaml-parse 'l-bare-document
-;;   ;; 						  #?"# No document\n...\n|\n%!PS-Adobe-2.0 # Not the first line\n" :junk-allowed t))))
-;;   (is (equal `(:document ((:properties (:tag . "tag:yaml.org,2002:str"))
-;; 			  (:content . ,#?"%!PS-Adobe-2.0 # Not the first line\n")))
-;; 	     (yaclyaml-parse 'l-bare-document
-;; 			     #?"|\n%!PS-Adobe-2.0 # Not the first line\n")))
-;;   )
+(test bare-document  
+  (is (equal '((:document ((:properties (:tag . :non-specific)) (:content . "Bare document"))) 14)
+	     (multiple-value-list (yaclyaml-parse 'l-bare-document
+						  #?"Bare document\n...\n# No document\n...\n|\n%!PS-Adobe-2.0 # Not the first line\n" :junk-allowed t))))
+  ;; bare documents may not be empty!
+  (signals (esrap-liquid::esrap-error) (yaclyaml-parse 'l-bare-document
+						       #?"# No document\n"))
+  (is (equal `(:document ((:properties (:tag . "tag:yaml.org,2002:str"))
+			  (:content . ,#?"%!PS-Adobe-2.0 # Not the first line\n")))
+	     (yaclyaml-parse 'l-bare-document
+			     #?"|\n%!PS-Adobe-2.0 # Not the first line\n")))
+  )
 
-;; (test explicit-documents
-;;   (is (equal '(:document ((:properties (:tag . :non-specific))
-;; 			  (:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "matches %"))
-;; 						 . ((:properties (:tag . :non-specific)) (:content . "20")))))))
-;; 	     (yaclyaml-parse 'l-explicit-document
-;; 			     #?"---\n{ matches\n% : 20 }\n")))
-;;   ;; (is (equal ""
-;;   ;; 	     (yaclyaml-parse 'l-explicit-document
-;;   ;; 			     #?"---\n# Empty\n")))
-;;   )
+(test explicit-documents
+  (is (equal '(:document ((:properties (:tag . :non-specific))
+			  (:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "matches %"))
+						 . ((:properties (:tag . :non-specific)) (:content . "20")))))))
+	     (yaclyaml-parse 'l-explicit-document
+			     #?"---\n{ matches\n% : 20 }\n")))
+  (is (equal '(:DOCUMENT ((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . :EMPTY)))
+  	     (yaclyaml-parse 'l-explicit-document
+  			     #?"---\n# Empty\n")))
+  )
 
-;; (test directive-documents
-;;   (is (equal `(:document ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ,#?"%!PS-Adobe-2.0\n")))
-;; 	     (yaclyaml-parse 'l-directive-document
-;; 			     #?"%YAML 1.2\n--- |\n%!PS-Adobe-2.0\n")))
-;;   ;; (is (equal #?""
-;;   ;; 	     (yaclyaml-parse 'l-directive-document
-;;   ;; 			     #?"%YAML 1.2\n---# Empty\n")))
-;;   )
+(test directive-documents
+  (is (equal `(:document ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ,#?"%!PS-Adobe-2.0\n")))
+	     (yaclyaml-parse 'l-directive-document
+			     #?"%YAML 1.2\n--- |\n%!PS-Adobe-2.0\n")))
+  (is (equal '(:DOCUMENT ((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . :EMPTY)))
+  	     (yaclyaml-parse 'l-directive-document
+  			     #?"%YAML 1.2\n---\n# Empty\n")))
+  )
 
+(test nested-tag-handles)
+;; (test nested-tag-handles
+;;   (is (equal '(:DOCUMENT ((:PROPERTIES (:TAG . "edcf")) (:CONTENT . "asdf")))
+;; 	     (yy-parse 'l-directive-document
+;; 		       #?"%TAG !a! !b!c\n%TAG !b! !d\n%TAG ! e\n---\n!a!f"))))
 
-;; (test yaml-stream
-;;   (is (equal '((:document ((:properties (:tag . :non-specific)) (:content . "Document")))
-;; 	       (:document ((:properties (:tag . :non-specific)) (:content . "another")))
-;; 	       (:document ((:properties (:tag . :non-specific))
-;; 			   (:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "matches %"))
-;; 						  . ((:properties (:tag . :non-specific)) (:content . "20"))))))))
-;; 	     (yaclyaml-parse 'l-yaml-stream
-;; 			     #?"Document\n---\nanother\n...\n%YAML 1.2\n---\nmatches %: 20")))
-;;   )
+(test yaml-stream
+  (is (equal '((:document ((:properties (:tag . :non-specific)) (:content . "Document")))
+	       (:document ((:properties (:tag . :non-specific)) (:content . "another")))
+	       (:document ((:properties (:tag . :non-specific))
+			   (:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "matches %"))
+						  . ((:properties (:tag . :non-specific)) (:content . "20"))))))))
+	     (yaclyaml-parse 'l-yaml-stream
+			     #?"Document\n---\nanother\n...\n%YAML 1.2\n---\nmatches %: 20")))
+  (is (equal `((:DOCUMENT ((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . "Bare document")))
+	       (:DOCUMENT
+		((:PROPERTIES (:TAG . "tag:yaml.org,2002:str"))
+		 ;; sadly, block scalars do not strip comment of their contents.
+		 (:CONTENT . ,#?"%!PS-Adobe-2.0 # Not the first line\n"))))
+	     (yaclyaml-parse 'l-yaml-stream
+			     #?"Bare document\n...\n# No document\n...\n|\n%!PS-Adobe-2.0 # Not the first line\n")))
+  )
+
+(test tag-handle-compilation
+  (is (equal 1
+	     (let ((cl-yy::tag-handles (make-hash-table :test #'equal)))
+	       (setf (gethash :secondary-tag-handle cl-yy::tag-handles) "tag:yaml.org,2002:"
+		     (gethash :primary-tag-handle cl-yy::tag-handles) "!"
+		     (gethash '(:named-tag-handle "a") cl-yy::tag-handles) "!b!c"
+		     (gethash '(:named-tag-handle "b") cl-yy::tag-handles) "!d"
+		     (gethash :primary-tag-handle cl-yy::tag-handles) "e")
+	       (cl-yy::compile-tag-handles)
+	       (hash->assoc cl-yy::tag-handles)))))
+
   
-				  
-;; ;; (test flow-nodes
-;; ;;   (is (equal '((:mapping ("YAML" . "separate"))) (yaclyaml-parse 'ns-flow-node #?"!!str \"a\"")))
-;; ;;   )
-  
+(test tag-shorthands
+  (is (equal '((:document ((:properties (:tag . :non-specific))
+			   (:content . (((:properties (:tag . "!local")) (:content . "foo"))
+					((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar"))
+					((:properties (:tag . "tag:example.com,2000:app/tag%21")) (:content . "baz")))))))
+	     (yaclyaml-parse 'l-yaml-stream #?"%TAG !e! tag:example.com,2000:app/\n---
+- !local foo\n- !!str bar\n- !e!tag%21 baz")))
+  )
 
-;; (test tag-shorthands
-;;   (is (equal '((:document ((:properties (:tag . :non-specific))
-;; 			   (:content . (((:properties (:tag . "!local")) (:content . "foo"))
-;; 					((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar"))
-;; 					((:properties (:tag . "tag:example.com,2000:app/tag%21")) (:content . "baz")))))))
-;; 	     (yaclyaml-parse 'l-yaml-stream #?"%TAG !e! tag:example.com,2000:app/\n---
-;; - !local foo\n- !!str bar\n- !e!tag%21 baz")))
-;;   )
-
-;; (test construction-of-representation-graph
-;;   ;; FIXME: for now such a lame check will suffice, I dunno how to check shared structured-ness easily
-;;   (is (equal `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "foo"))
-;; 			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
-;; 			(((:properties) (:content . "baz"))
-;; 			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "foo"))))
-;; 	     (ncompose-representation-graph
-;; 	      (copy-tree `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str") (:anchor . "a1")) (:content . "foo"))
-;; 				     . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
-;; 				    (((:properties (:anchor . "a2")) (:content . "baz"))
-;; 				     . (:alias . "a1"))))))))
+(test construction-of-representation-graph
+  ;; FIXME: for now such a lame check will suffice, I dunno how to check shared structured-ness easily
+  (is (equal `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "foo"))
+			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
+			(((:properties) (:content . "baz"))
+			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "foo"))))
+	     (ncompose-representation-graph
+	      (copy-tree `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str") (:anchor . "a1")) (:content . "foo"))
+				     . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar")))
+				    (((:properties (:anchor . "a2")) (:content . "baz"))
+				     . (:alias . "a1"))))))))
 
 
-;; ;;; Generating native language structures from representation graph
+;;; Generating native language structures from representation graph
 
-;; ;; (defmacro with-flat-nodes ((from to) &body body)
-;; ;;   (iter (for i from from to to)
-;; ;; 	(collect `(,(sb-int:symbolicate "NODE" (format nil "~a" i))
-;; ;; 		    '((:properties) (:content . ,(format nil "~a" i)))) into res)
-;; ;; 	(finally (return `(let ,res ,@body)))))
+;; (defmacro with-flat-nodes ((from to) &body body)
+;;   (iter (for i from from to to)
+;; 	(collect `(,(sb-int:symbolicate "NODE" (format nil "~a" i))
+;; 		    '((:properties) (:content . ,(format nil "~a" i)))) into res)
+;; 	(finally (return `(let ,res ,@body)))))
 
-;; ;; (defmacro with-cons-nodes ((from to) &body body)
-;; ;;   (iter (for i from from to to)
-;; ;; 	(collect `(,(sb-int:symbolicate "CONS-NODE" (format nil "~a" i))
-;; ;; 		    (list (list :properties) (list :content))) into res)
-;; ;; 	(finally (return `(let ,res ,@body)))))
+;; (defmacro with-cons-nodes ((from to) &body body)
+;;   (iter (for i from from to to)
+;; 	(collect `(,(sb-int:symbolicate "CONS-NODE" (format nil "~a" i))
+;; 		    (list (list :properties) (list :content))) into res)
+;; 	(finally (return `(let ,res ,@body)))))
 
-;; ;; (defmacro link-nodes (which where)
-;; ;;   `(push ,which (cdr (assoc :content ,where))))
+;; (defmacro link-nodes (which where)
+;;   `(push ,which (cdr (assoc :content ,where))))
 
-;; ;; (defun mk-node (num)
-;; ;;   (sb-int:symbolicate "NODE" (format nil "~a" num)))
+;; (defun mk-node (num)
+;;   (sb-int:symbolicate "NODE" (format nil "~a" num)))
 
-;; ;; (defun mk-cons-node (num)
-;; ;;   (sb-int:symbolicate "CONS-NODE" (format nil "~a" num)))
+;; (defun mk-cons-node (num)
+;;   (sb-int:symbolicate "CONS-NODE" (format nil "~a" num)))
 
 
-;; ;; (test find-parents
-;; ;;   (with-flat-nodes (1 5)
-;; ;;     (with-cons-nodes (1 5)
-;; ;;       (is (equal
-;; ;; 	   (let ((res (make-hash-table :test #'eq)))
-;; ;; 	     (setf (gethash cons-node2 res) (list cons-node1)
-;; ;; 		   (gethash node1 res) (list cons-node1)
-;; ;; 		   (gethash cons-node3 res) (list cons-node2)
-;; ;; 		   (gethash node2 res) (list cons-node2)
-;; ;; 		   (gethash cons-node4 res) (list cons-node3)
-;; ;; 		   (gethash node3 res) (list cons-node3)
-;; ;; 		   (gethash cons-node5 res) (list cons-node4)
-;; ;; 		   (gethash node4 res) (list cons-node4)
-;; ;; 		   (gethash node5 res) (list cons-node5))
-;; ;; 	     res)
-;; ;; 	   (macrolet ((with-simple-chain ((from to) &body body)
-;; ;; 			(iter (for i from from below to)
-;; ;; 			      (collect `(link-nodes ,(mk-node (1+ i))
-;; ;; 						    ,(mk-cons-node (1+ i))) into res)
-;; ;; 			      (collect `(link-nodes ,(mk-cons-node (1+ i))
-;; ;; 						    ,(mk-cons-node i)) into res)
-;; ;; 			      (finally (return
-;; ;; 					 `(progn (link-nodes ,(mk-node from)
-;; ;; 							     ,(mk-cons-node from))
-;; ;; 						 ,@res
-;; ;; 						 (let ((chain ,(mk-cons-node from)))
-;; ;; 						   ,@body)))))))
-;; ;; 	     (with-simple-chain (1 5)
-;; ;; 	       (cl-yaclyaml::find-parents chain))))))))
+;; (test find-parents
+;;   (with-flat-nodes (1 5)
+;;     (with-cons-nodes (1 5)
+;;       (is (equal
+;; 	   (let ((res (make-hash-table :test #'eq)))
+;; 	     (setf (gethash cons-node2 res) (list cons-node1)
+;; 		   (gethash node1 res) (list cons-node1)
+;; 		   (gethash cons-node3 res) (list cons-node2)
+;; 		   (gethash node2 res) (list cons-node2)
+;; 		   (gethash cons-node4 res) (list cons-node3)
+;; 		   (gethash node3 res) (list cons-node3)
+;; 		   (gethash cons-node5 res) (list cons-node4)
+;; 		   (gethash node4 res) (list cons-node4)
+;; 		   (gethash node5 res) (list cons-node5))
+;; 	     res)
+;; 	   (macrolet ((with-simple-chain ((from to) &body body)
+;; 			(iter (for i from from below to)
+;; 			      (collect `(link-nodes ,(mk-node (1+ i))
+;; 						    ,(mk-cons-node (1+ i))) into res)
+;; 			      (collect `(link-nodes ,(mk-cons-node (1+ i))
+;; 						    ,(mk-cons-node i)) into res)
+;; 			      (finally (return
+;; 					 `(progn (link-nodes ,(mk-node from)
+;; 							     ,(mk-cons-node from))
+;; 						 ,@res
+;; 						 (let ((chain ,(mk-cons-node from)))
+;; 						   ,@body)))))))
+;; 	     (with-simple-chain (1 5)
+;; 	       (cl-yaclyaml::find-parents chain))))))))
 	     
 	
 (test scalar-construction-failsafe
@@ -614,64 +633,64 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 	      (construct '((:properties . ((:tag . :non-specific))) (:content . ".Inf")) :schema :core)))
   )
 
-;; (test simple-sequences
-;;   (is (equal '((:document ("foo" "bar" "baz")))
-;; 	     (yaml-load #?"- foo\n- bar\n- baz\n")))
-;;   (is (equal '((:document ((:content . (((:content . "foo") (:tag . :non-specific))
-;; 					((:content . "bar") (:tag . :non-specific))
-;; 					((:content . "baz") (:tag . :non-specific))))
-;; 			   (:tag . :non-specific))))
-;; 	     (yaml-load #?"- foo\n- bar\n- baz\n" :schema :failsafe)))
-;;   )
+(test simple-sequences
+  (is (equal '((:document ("foo" "bar" "baz")))
+	     (yaml-load #?"- foo\n- bar\n- baz\n")))
+  (is (equal '((:document ((:content . (((:content . "foo") (:tag . :non-specific))
+					((:content . "bar") (:tag . :non-specific))
+					((:content . "baz") (:tag . :non-specific))))
+			   (:tag . :non-specific))))
+	     (yaml-load #?"- foo\n- bar\n- baz\n" :schema :failsafe)))
+  )
 
-;; (test simple-sequences-load
-;;   (is (equal '("foo" "bar" "baz")
-;; 	     (yaml-simple-load #?"- foo\n- bar\n- baz\n")))
-;;   (is (equal '((:content . (((:content . "foo") (:tag . :non-specific))
-;; 			    ((:content . "bar") (:tag . :non-specific))
-;; 			    ((:content . "baz") (:tag . :non-specific))))
-;; 	       (:tag . :non-specific))
-;; 	     (yaml-simple-load #?"- foo\n- bar\n- baz\n" :schema :failsafe)))
-;;   (signals (error "simple load of multiple documents doesn't signal an error.")
-;; 	   (cl-yaclyaml::yaml-simple-load #?"- foo\n- bar\n- baz\n...\n- goo...\n- goo"))
-;;   (is (equal '("foo" "bar" ("baz" "baz2" "baz3"))
-;; 	     (yaml-simple-load #?"- foo\n- bar\n- - baz\n  - baz2\n  - baz3")))
-;;   )
+(test simple-sequences-load
+  (is (equal '("foo" "bar" "baz")
+	     (yaml-simple-load #?"- foo\n- bar\n- baz\n")))
+  (is (equal '((:content . (((:content . "foo") (:tag . :non-specific))
+			    ((:content . "bar") (:tag . :non-specific))
+			    ((:content . "baz") (:tag . :non-specific))))
+	       (:tag . :non-specific))
+	     (yaml-simple-load #?"- foo\n- bar\n- baz\n" :schema :failsafe)))
+  (signals (error "simple load of multiple documents doesn't signal an error.")
+	   (cl-yaclyaml::yaml-simple-load #?"- foo\n- bar\n- baz\n...\n- goo...\n- goo"))
+  (is (equal '("foo" "bar" ("baz" "baz2" "baz3"))
+	     (yaml-simple-load #?"- foo\n- bar\n- - baz\n  - baz2\n  - baz3")))
+  )
 
 
-;; (test simple-mappings
-;;   (is (equal '(("earth" . "green") ("moon" . "blue") ("sun" . "gold"))
-;; 	     (sort (hash->assoc (cadar (yaml-load #?"sun : gold\nearth : green\nmoon : blue")))
-;; 		   #'string< :key #'car))))
+(test simple-mappings
+  (is (equal '(("earth" . "green") ("moon" . "blue") ("sun" . "gold"))
+	     (sort (hash->assoc (cadar (yaml-load #?"sun : gold\nearth : green\nmoon : blue")))
+		   #'string< :key #'car))))
 
-;; (defparameter simplest-cyclic (yaml-simple-load #?"&foo\n- 1\n- *foo\n- 2\n- 3"))
+(defparameter simplest-cyclic (yaml-simple-load #?"&foo\n- 1\n- *foo\n- 2\n- 3"))
 
-;; (test simple-cyclics
-;;   (is (equal 1 (car simplest-cyclic)))
-;;   (is (equal 2 (caddr simplest-cyclic)))
-;;   (is (equal 3 (cadddr simplest-cyclic)))
-;;   (is (equal nil (nth 4 simplest-cyclic)))
-;;   (is (equal 1 (car (cadr simplest-cyclic)))))
+(test simple-cyclics
+  (is (equal 1 (car simplest-cyclic)))
+  (is (equal 2 (caddr simplest-cyclic)))
+  (is (equal 3 (cadddr simplest-cyclic)))
+  (is (equal nil (nth 4 simplest-cyclic)))
+  (is (equal 1 (car (cadr simplest-cyclic)))))
 
-;; (defparameter alias-mapping
-;;   ;; additional sequence level in all but first map is to ensure actual values of &FOO and &BAR are
-;;   ;; processed after those maps, thus the need to use callback-code is there.
-;;   (let ((loadee (yaml-simple-load #?"- ? &foo a\n  : &bar b
-;; - - ? *foo
-;;     : b
-;; - - ? a
-;;     : *bar
-;; - - ? *foo
-;;     : *bar")))
-;;     (mapcar #'hash->assoc `(,(car loadee) ,@(mapcar #'car (cdr loadee))))))
+(defparameter alias-mapping
+  ;; additional sequence level in all but first map is to ensure actual values of &FOO and &BAR are
+  ;; processed after those maps, thus the need to use callback-code is there.
+  (let ((loadee (yaml-simple-load #?"- ? &foo a\n  : &bar b
+- - ? *foo
+    : b
+- - ? a
+    : *bar
+- - ? *foo
+    : *bar")))
+    (mapcar #'hash->assoc `(,(car loadee) ,@(mapcar #'car (cdr loadee))))))
     
-;; (test alias-mappings
-;;   (is (eq (caar (first alias-mapping)) (caar (second alias-mapping))))
-;;   (is (not (eq (cdar (first alias-mapping)) (cdar (second alias-mapping)))))
-;;   (is (not (eq (caar (first alias-mapping)) (caar (third alias-mapping)))))
-;;   (is (eq (cdar (first alias-mapping)) (cdar (third alias-mapping))))
-;;   (is (eq (caar (first alias-mapping)) (caar (fourth alias-mapping))))
-;;   (is (eq (cdar (first alias-mapping)) (cdar (fourth alias-mapping)))))
+(test alias-mappings
+  (is (eq (caar (first alias-mapping)) (caar (second alias-mapping))))
+  (is (not (eq (cdar (first alias-mapping)) (cdar (second alias-mapping)))))
+  (is (not (eq (caar (first alias-mapping)) (caar (third alias-mapping)))))
+  (is (eq (cdar (first alias-mapping)) (cdar (third alias-mapping))))
+  (is (eq (caar (first alias-mapping)) (caar (fourth alias-mapping))))
+  (is (eq (cdar (first alias-mapping)) (cdar (fourth alias-mapping)))))
   
 
 
