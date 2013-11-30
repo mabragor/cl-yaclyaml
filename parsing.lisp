@@ -946,6 +946,7 @@
 							    vanilla-sequence-tag)))
     `(,props (:content . ,content))))
 
+
 (define-yy-rule ns-flow-node ()
   (let ((node (|| c-ns-alias-node
 		  ns-flow-content

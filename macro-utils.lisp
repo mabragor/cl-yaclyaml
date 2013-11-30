@@ -10,5 +10,6 @@
 	 (if it
 	     (if (equal (cdr it) :vanilla)
 		 (setf (cdr it) ,crunch-if-vanilla))
-	     (setf (cdr ,props-var) `((:tag . ,,crunch-if-absent) ,.(cdr ,props-var)))))
+	     (let ((,g!-new-props `((:tag . ,,crunch-if-absent) ,.(cdr ,props-var))))
+	       (setf ,props-var (cons :properties ,g!-new-props)))))
        (setf ,props-var `(:properties (:tag . ,,crunch-if-absent)))))

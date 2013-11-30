@@ -134,11 +134,16 @@
   (is (equal '(((:properties (:tag . :non-specific)) (:content . "three"))
 	       ((:properties (:tag . :non-specific)) (:content . "four")))
 	     (yaclyaml-parse 'c-flow-sequence #?"[three ,four]")))
-  ;; (is (equal '("double quoted" "single quoted" "plain text" ("nested")
-  ;; 	       (:mapping ("single" . "pair")))
-  ;; 	     (yaclyaml-parse 'c-flow-sequence
-  ;; 			     #?"[\n\"double\n quoted\", 'single
-  ;;      quoted',\nplain\n text, [ nested ],\nsingle: pair,\n]")))
+  (is (equal '(((:PROPERTIES (:TAG . "tag:yaml.org,2002:str")) (:CONTENT . "double quoted"))
+	       ((:PROPERTIES (:TAG . "tag:yaml.org,2002:str")) (:CONTENT . "single quoted"))
+	       ((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . "plain text"))
+	       ((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT ((:PROPERTIES (:TAG . :NON-SPECIFIC))
+								(:CONTENT . "nested"))))
+	       (:MAPPING (((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . "single"))
+			  (:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . "pair"))))
+  	     (yaclyaml-parse 'c-flow-sequence
+  			     #?"[\n\"double\n quoted\", 'single
+       quoted',\nplain\n text, [ nested ],\nsingle: pair,\n]")))
   )
 
 (test plain-scalars
@@ -186,20 +191,30 @@
   (is (equal '(:tag . "asdf") (yaclyaml-parse 'c-ns-tag-property "!<asdf>")))
   (signals (esrap-liquid::esrap-error) (yaclyaml-parse 'c-ns-tag-property ":")))
 
-;; (test flow-mapping-nodes-complex
-;;   (is (equal '(:mapping (((:properties (:tag . :non-specific)) (:content . "unquoted"))
-;; 			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "separate")))
-;; 	       (((:properties (:tag . :non-specific)) (:content . "http://foo.com"))
-;; 		. ((:properties (:tag . :non-specific)) (:content . :empty)))
-;; 	       (((:properties (:tag . :non-specific)) (:content . "omitted value"))
-;; 		. ((:properties (:tag . :non-specific)) (:content . :empty)))
-;; 	       (((:properties (:tag . :non-specific)) (:content . :empty))
-;; 		. ((:properties (:tag . :non-specific)) (:content . "omitted key")))
-;; 	       (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ""))
-;; 		. ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ""))))
-;; 	     (yaclyaml-parse 'c-flow-mapping
-;; 			     #?"{\nunquoted : \"separate\",\nhttp://foo.com,
-;; omitted value:,\n: omitted key,'':'',\n}"))))
+
+
+(test flow-mapping-nodes-individual-complex
+  (is (equal '(:mapping (((:properties (:tag . :non-specific)) (:content . "unquoted"))
+			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "separate"))))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{\nunquoted : \"separate\"}"))))
+  
+(test flow-mapping-nodes-complex)
+
+(test flow-mapping-nodes-complex
+  (is (equal '(:mapping (((:properties (:tag . :non-specific)) (:content . "unquoted"))
+			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "separate")))
+	       (((:properties (:tag . :non-specific)) (:content . "http://foo.com"))
+		. ((:properties (:tag . :non-specific)) (:content . :empty)))
+	       (((:properties (:tag . :non-specific)) (:content . "omitted value"))
+		. ((:properties (:tag . :non-specific)) (:content . :empty)))
+	       (((:properties (:tag . :non-specific)) (:content . :empty))
+		. ((:properties (:tag . :non-specific)) (:content . "omitted key")))
+	       (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ""))
+		. ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ""))))
+	     (yaclyaml-parse 'c-flow-mapping
+			     #?"{\nunquoted : \"separate\",\nhttp://foo.com,
+omitted value:,\n: omitted key,'':'',\n}"))))
 
 (test flow-mapping-nodes-next
   (is (equal '(:mapping (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "adjacent"))
