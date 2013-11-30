@@ -20,3 +20,14 @@
 (defmacro!! define-yy-rule (symbol args &body body)
     ()
   `(define-yaclyaml-rule ,symbol ,args ,@body))
+(defmacro!! yy-parse (expression text &key (start nil start-p)
+				 (end nil end-p)
+				 (junk-allowed nil junk-allowed-p))
+    ()
+  `(yaclyaml-parse ,expression ,text
+		   ,@(if start-p `(:start ,start))
+		   ,@(if end-p `(:end ,end))
+		   ,@(if junk-allowed-p
+			 `(:junk-allowed ,junk-allowed))))
+
+

@@ -267,25 +267,65 @@
   ;; 	     (let ((cl-yy::n -1))
   ;; 	       (yaclyaml-parse 'l+block-mapping #?"block sequence:\n  - one\n  - two : three\n")))))
 
+(test detect-block-mapping
+  (is (equal 0 (let ((cl-yy::n -1)) (yaclyaml-parse 'detect-block-mapping "a" :junk-allowed t))))
+  (is (equal 1 (let ((cl-yy::n -1)) (yaclyaml-parse 'detect-block-mapping " a" :junk-allowed t))))
+  (is (equal 1 (let ((cl-yy::n 0)) (yaclyaml-parse 'detect-block-mapping " a" :junk-allowed t))))
+  (is (equal 0 (let ((cl-yy::n -1)) (yaclyaml-parse 'detect-block-mapping "?" :junk-allowed t))))
+  (is (equal nil (let ((cl-yy::n 2)) (yaclyaml-parse 'detect-block-mapping " a" :junk-allowed t)))))
 
-;; (test block-mappings
+(test block-map-entry
+  (is (equal '(((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . "explicit key"))
+	       (:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . :EMPTY))
+	     (let ((cl-yy::n 0)) (yaclyaml-parse 'ns-l-block-map-entry #?"? explicit key # Empty value\n"))))
+  (is (equal '(((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . "explicit key"))
+	       (:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . :EMPTY))
+	     (let ((cl-yy::n 0)) (yaclyaml-parse '(progn cl-yy::s-indent-=n cl-yy::ns-l-block-map-entry)
+						 #?"? explicit key # Empty value\n"))))
+  (is (equal '(((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . "explicit key"))
+	       (:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . :EMPTY))
+	     (let ((cl-yy::n -1)) (yaclyaml-parse '(let ((cl-yy::n cl-yy::detect-block-mapping)
+							 (cl-yy::indent-style :determined))
+						    (progn cl-yy::s-indent-=n cl-yy::ns-l-block-map-entry))
+						  #?"? explicit key # Empty value\n"))))
+  (is (equal '((((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . "explicit key"))
+		(:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . :EMPTY)))
+	     (let ((cl-yy::n -1)) (yaclyaml-parse '(let ((cl-yy::n cl-yy::detect-block-mapping)
+							 (cl-yy::indent-style :determined))
+						    (cl-yy::postimes
+						     (progn cl-yy::s-indent-=n cl-yy::ns-l-block-map-entry)))
+						  #?"? explicit key # Empty value\n"))))
+  (is (equal '(:mapping (((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . "explicit key"))
+			 (:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . :EMPTY)))
+	     (let ((cl-yy::n -1)) (yaclyaml-parse '(let ((cl-yy::n cl-yy::detect-block-mapping)
+							 (cl-yy::indent-style :determined))
+						    `(:mapping ,.(cl-yy::postimes
+								  (progn cl-yy::s-indent-=n
+									 cl-yy::ns-l-block-map-entry))))
+						  #?"? explicit key # Empty value\n")))))
+
+  
+(test block-mappings
+  (is (equal `(:mapping (((:properties (:tag . :non-specific)) (:content . "explicit key"))
+			 . ((:properties (:tag . :non-specific)) (:content . :empty))))
+	     (let ((cl-yy::n -1)) (yaclyaml-parse 'l+block-mapping #?"? explicit key # Empty value\n"))))
+  (is (equal `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ,#?"block key\n"))
+			 . ((:properties (:tag . :non-specific)) (:content . "flow value"))))
+	     (let ((cl-yy::n -1)) (yaclyaml-parse 'l+block-mapping #?"? |\n  block key\n: flow value\n"))))
+  (is (equal `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ,#?"block key\n"))
+			 . ((:properties (:tag . :non-specific))
+			    (:content . (((:properties (:tag . :non-specific)) (:content . "one"))
+					 ((:properties (:tag . :non-specific)) (:content . "two")))))))
+	     (let ((cl-yy::n -1))
+	       (yaclyaml-parse 'l+block-mapping #?"? |\n  block key\n: - one # Explicit compact\n  - two # block value\n")))))
+  
+;; (test block-mappings-implicit
 ;;   (is (equal `(:mapping (((:properties (:tag . :non-specific)) (:content . "block mapping"))
 ;; 			 . ((:properties (:tag . :non-specific))
 ;; 			    (:content . (:mapping (((:properties (:tag . :non-specific)) (:content . "key"))
 ;; 						   . ((:properties (:tag . :non-specific)) (:content . "value"))))))))
 ;; 	     (let ((cl-yy::n -1))
 ;; 	       (yaclyaml-parse 'l+block-mapping #?"block mapping:\n key: value\n")))))
-;;   (is (equal `(:mapping (((:properties (:tag . :non-specific)) (:content . "explicit key"))
-;; 			 . ((:properties (:tag . :non-specific)) (:content . :empty))))
-;; 	     (yaclyaml-parse 'l+block-mapping #?"? explicit key # Empty value\n")))
-;;   (is (equal `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ,#?"block key\n"))
-;; 			 . ((:properties (:tag . :non-specific)) (:content . "flow value"))))
-;; 	     (yaclyaml-parse 'l+block-mapping #?"? |\n  block key\n: flow value\n")))
-;;   (is (equal `(:mapping (((:properties (:tag . "tag:yaml.org,2002:str")) (:content . ,#?"block key\n"))
-;; 			 . ((:properties (:tag . :non-specific))
-;; 			    (:content . (((:properties (:tag . :non-specific)) (:content . "one"))
-;; 					 ((:properties (:tag . :non-specific)) (:content . "two")))))))
-;; 	     (yaclyaml-parse 'l+block-mapping #?"? |\n  block key\n: - one # Explicit compact\n  - two # block value\n")))
 ;;   (is (equal `(:mapping (((:properties (:tag . :non-specific)) (:content . "plain key"))
 ;; 			 . ((:properties (:tag . :non-specific)) (:content . "in-line value")))
 ;; 			(((:properties (:tag . :non-specific)) (:content . :empty))
@@ -445,76 +485,76 @@
 ;; ;; 	       (cl-yaclyaml::find-parents chain))))))))
 	     
 	
-;; (test scalar-construction-failsafe
-;;   (is (equal '((:content . "asdf") (:tag . :non-specific))
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :failsafe)))
-;;   (is (equal "asdf"
-;; 	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:str"))) (:content . "asdf")) :schema :failsafe)))
-;;   (is (equal '((:content . :empty) (:tag . "tag:yaml.org,2002:null"))
-;; 	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:null"))) (:content . :empty)) :schema :failsafe))))
+(test scalar-construction-failsafe
+  (is (equal '((:content . "asdf") (:tag . :non-specific))
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :failsafe)))
+  (is (equal "asdf"
+	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:str"))) (:content . "asdf")) :schema :failsafe)))
+  (is (equal '((:content . :empty) (:tag . "tag:yaml.org,2002:null"))
+	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:null"))) (:content . :empty)) :schema :failsafe))))
   
   
-;; (test scalar-construction-json
-;;   (signals (error "JSON impication of scalar didn't signal an error.")
-;;       (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :json))
-;;   (is (equal "asdf"
-;; 	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:str"))) (:content . "asdf")) :schema :json)))
-;;   (is (equal 123
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "123")) :schema :json)))
-;;   (is (equal -3.14
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-3.14")) :schema :json)))
-;;   (is (equal nil
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . :empty)) :schema :json)))
-;;   (is (equal nil
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "null")) :schema :json))))
+(test scalar-construction-json
+  (signals (error "JSON impication of scalar didn't signal an error.")
+      (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :json))
+  (is (equal "asdf"
+	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:str"))) (:content . "asdf")) :schema :json)))
+  (is (equal 123
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "123")) :schema :json)))
+  (is (equal -3.14
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-3.14")) :schema :json)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . :empty)) :schema :json)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "null")) :schema :json))))
   
 
-;; (test scalar-construction-core
-;;   (is (equal "asdf"
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :core)))
-;;   (is (equal "asdf"
-;; 	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:str"))) (:content . "asdf")) :schema :core)))
-;;   (is (equal 123
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "123")) :schema :core)))
-;;   (is (equal -3.14
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-3.14")) :schema :core)))
-;;   (is (equal nil
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . :empty)) :schema :core)))
-;;   (is (equal nil
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "null")) :schema :core)))
-;;   (is (equal ""
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "")) :schema :core)))
-;;   (is (equal t
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "true")) :schema :core)))
-;;   (is (equal t
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "True")) :schema :core)))
-;;   (is (equal nil
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "false")) :schema :core)))
-;;   (is (equal nil
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "FALSE")) :schema :core)))
-;;   (is (equal 0
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0")) :schema :core)))
-;;   (is (equal 7
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0o7")) :schema :core)))
-;;   (is (equal 58
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0x3A")) :schema :core)))
-;;   (is (equal -19
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-19")) :schema :core)))
-;;   (is (equalp 0
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0.")) :schema :core)))
-;;   (is (equalp 0
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-0.0")) :schema :core)))
-;;   (is (equal 0.5
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . ".5")) :schema :core)))
-;;   (is (equalp 12000
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "+12e03")) :schema :core)))
-;;   (is (equalp -200000
-;; 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-2E+05")) :schema :core)))
-;;   (is (equalp :nan
-;; 	      (construct '((:properties . ((:tag . :non-specific))) (:content . ".NAN")) :schema :core)))
-;;   (is (equalp :infinity
-;; 	      (construct '((:properties . ((:tag . :non-specific))) (:content . ".Inf")) :schema :core)))
-;;   )
+(test scalar-construction-core
+  (is (equal "asdf"
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :core)))
+  (is (equal "asdf"
+	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:str"))) (:content . "asdf")) :schema :core)))
+  (is (equal 123
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "123")) :schema :core)))
+  (is (equal -3.14
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-3.14")) :schema :core)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . :empty)) :schema :core)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "null")) :schema :core)))
+  (is (equal ""
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "")) :schema :core)))
+  (is (equal t
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "true")) :schema :core)))
+  (is (equal t
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "True")) :schema :core)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "false")) :schema :core)))
+  (is (equal nil
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "FALSE")) :schema :core)))
+  (is (equal 0
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0")) :schema :core)))
+  (is (equal 7
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0o7")) :schema :core)))
+  (is (equal 58
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0x3A")) :schema :core)))
+  (is (equal -19
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-19")) :schema :core)))
+  (is (equalp 0
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "0.")) :schema :core)))
+  (is (equalp 0
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-0.0")) :schema :core)))
+  (is (equal 0.5
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . ".5")) :schema :core)))
+  (is (equalp 12000
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "+12e03")) :schema :core)))
+  (is (equalp -200000
+	     (construct '((:properties . ((:tag . :non-specific))) (:content . "-2E+05")) :schema :core)))
+  (is (equalp :nan
+	      (construct '((:properties . ((:tag . :non-specific))) (:content . ".NAN")) :schema :core)))
+  (is (equalp :infinity
+	      (construct '((:properties . ((:tag . :non-specific))) (:content . ".Inf")) :schema :core)))
+  )
 
 ;; (test simple-sequences
 ;;   (is (equal '((:document ("foo" "bar" "baz")))
@@ -526,7 +566,7 @@
 ;; 	     (yaml-load #?"- foo\n- bar\n- baz\n" :schema :failsafe)))
 ;;   )
 
-;; (test simple-sequences
+;; (test simple-sequences-load
 ;;   (is (equal '("foo" "bar" "baz")
 ;; 	     (yaml-simple-load #?"- foo\n- bar\n- baz\n")))
 ;;   (is (equal '((:content . (((:content . "foo") (:tag . :non-specific))
