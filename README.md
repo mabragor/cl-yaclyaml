@@ -5,30 +5,27 @@ Yet Another Common Lisp YaML processor (so far, only loader, but not dumper)
 
 Tries to adhere to YAML 1.2 specification (see www.yaml.org)
 
-Software should be considered very alpha. Not all functional is properly test-covered, hence
-bug-reports/fixes, suggestions of improvement are much welcome!
-
 High-level interface is provided by exported YAML-LOAD function.
 
-        CL-USER> (ql:quickload 'cl-yaclyaml)
-        CL-USER> (ql:quickload 'cl-interpol)
-        CL-USER> (cl-interpol:enable-interpol-syntax)
-        CL-USER> (cl-yaclyaml:yaml-load #?"- foo\n- bar\n- baz\n")
-            ((:DOCUMENT ("foo" "bar" "baz")))
+```lisp
+CL-USER> (ql:quickload 'cl-yaclyaml)
+CL-USER> (ql:quickload 'cl-interpol)
+CL-USER> (cl-interpol:enable-interpol-syntax)
+CL-USER> (cl-yy:yaml-load #?"- foo\n- bar\n- baz\n")
+((:DOCUMENT ("foo" "bar" "baz")))
+```
 
 If you are sure, that your stream contains only one YAML document, use can also use
 
-        CL-USER> (cl-yaclyaml:yaml-simple-load #?"- foo\n- bar\n- baz\n")
-            ("foo" "bar" "baz")
+```lisp
+CL-USER> (cl-yy:yaml-simple-load #?"- foo\n- bar\n- baz\n")
+("foo" "bar" "baz")
 
 Loader supports optional SCHEMA keyword parameter, which can now be :FAILSAFE :JSON and :CORE (default)
 and affects tag implication and resolution.
 
 Technically, process of loading is done in three stages: parsing of raw-text, composing of representation graph
 and construction of native language structures.
-
-IMPORTANT: Parsing is done with help of my branch of ESRAP-parser framework (https://github.com/mabragor/esrap),
-which should be git-cloned somewhere quicklisp can find it (e.g ~/quicklisp/local-proects)
 
 What remains to be done:
   * :LISP tag-resolution schema, which would support lisp-specific data types, such as symbols, arrays, alists and so on.
