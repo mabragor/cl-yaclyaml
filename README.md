@@ -20,6 +20,7 @@ If you are sure, that your stream contains only one YAML document, use can also 
 ```lisp
 CL-USER> (cl-yy:yaml-simple-load #?"- foo\n- bar\n- baz\n")
 ("foo" "bar" "baz")
+```
 
 Loader supports optional SCHEMA keyword parameter, which can now be :FAILSAFE :JSON and :CORE (default)
 and affects tag implication and resolution.
