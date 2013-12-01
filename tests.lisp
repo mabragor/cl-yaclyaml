@@ -450,11 +450,10 @@ omitted value:,\n: omitted key,'':'',\n}"))))
   			     #?"%YAML 1.2\n---\n# Empty\n")))
   )
 
-(test nested-tag-handles)
-;; (test nested-tag-handles
-;;   (is (equal '(:DOCUMENT ((:PROPERTIES (:TAG . "edcf")) (:CONTENT . "asdf")))
-;; 	     (yy-parse 'l-directive-document
-;; 		       #?"%TAG !a! !b!c\n%TAG !b! !d\n%TAG ! e\n---\n!a!f"))))
+(test nested-tag-handles
+  (is (equal '(:DOCUMENT ((:PROPERTIES (:TAG . "edcf")) (:CONTENT . "asdf")))
+	     (yy-parse 'l-directive-document
+		       #?"%TAG !a! !b!c\n%TAG !b! !d\n%TAG ! e\n---\n!a!f asdf"))))
 
 (test yaml-stream
   (is (equal '((:document ((:properties (:tag . :non-specific)) (:content . "Document")))
@@ -474,7 +473,9 @@ omitted value:,\n: omitted key,'':'',\n}"))))
   )
 
 (test tag-handle-compilation
-  (is (equal 1
+  (is (equal '((:SECONDARY-TAG-HANDLE . "tag:yaml.org,2002:")
+	       (:PRIMARY-TAG-HANDLE . "e")
+	       ((:NAMED-TAG-HANDLE "a") . "edc") ((:NAMED-TAG-HANDLE "b") . "ed"))
 	     (let ((cl-yy::tag-handles (make-hash-table :test #'equal)))
 	       (setf (gethash :secondary-tag-handle cl-yy::tag-handles) "tag:yaml.org,2002:"
 		     (gethash :primary-tag-handle cl-yy::tag-handles) "!"

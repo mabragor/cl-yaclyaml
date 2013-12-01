@@ -337,7 +337,7 @@
 	 (sep1 s-separate-in-line)
 	 (prefix ns-tag-prefix))
     (declare (ignore tag sep sep1))
-    (format t (literal-string "got tag directive: ~a ~a~%") handle prefix)
+    ;; (format t (literal-string "got tag directive: ~a ~a~%") handle prefix)
     (if (gethash handle tag-handles)
 	(fail-parse "The TAG directive must be given at most once per handle in the same document.")
 	(setf (gethash handle tag-handles) prefix))
@@ -1012,30 +1012,31 @@
 (define-yy-rule l-directive-document ()
   (let ((yaml-version nil)
 	(tag-handles (make-hash-table :test #'equal)))
-    (setf (gethash :secondary-tag-handle tag-handles) default-yaml-tagspace
-	  (gethash :primary-tag-handle tag-handles) default-local-tagspace)
-    %l-directive-document))
+    (postimes l-directive)
+    (compile-tag-handles)
+    (if (not (gethash :secondary-tag-handle tag-handles))
+	(setf (gethash :secondary-tag-handle tag-handles) default-yaml-tagspace))
+    (if (not (gethash :primary-tag-handle tag-handles))
+	(setf (gethash :primary-tag-handle tag-handles) default-local-tagspace))
+    l-explicit-document))
 
 (let (path)
   (declare (special path))
   (defun try-resolve (handle)
     (multiple-value-bind (prefix position)
 	(yaclyaml-parse 'c-tag-handle handle :junk-allowed t)
-      ;; (format t "~a ~a ~a~%" handle prefix position)
+      ;; (format t "~%in resolving handle: ~a ~a ~a~%" handle prefix position)
       (if prefix
 	  (let ((pos (position prefix path :test #'equal)))
 	    (if (and pos position (not (equal 0 pos)))
 		(error "Loop in prefixes resolution: ~a~%" `(,@(subseq path pos) ,prefix))
-		(strcat (gethash (if (atom prefix)
-				     prefix
-				     (cadr prefix))
-				 tag-handles)
+		(strcat (gethash prefix tag-handles)
 			(if position
 			    (subseq handle position)))))
 	  handle)))
 
   (defun compile-tag-handles ()
-    (format t "handles: ~a ~%" (hash->assoc tag-handles))
+    ;; (format t "~%handles: ~a ~%" (hash->assoc tag-handles))
     (iter (for (key . nil) in (hash->assoc tag-handles))
 	  ;; (format t "handle: ~a ~%" key)
 	  (let ((path `(,key)))
@@ -1044,18 +1045,15 @@
 		  (let ((val (gethash key tag-handles)))
 		    ;; (format t "value: ~a ~%" val)
 		    (let ((try-val (try-resolve val)))
+		      ;; (format t "try-value: ~a ~%" try-val)
 		      (if (equal try-val val)
 			  (terminate)
 			  (setf (gethash key tag-handles) try-val
 				val try-val
 				path (cons try-val path))))))))
-    (format t "compiled handles: ~a ~%" (hash->assoc tag-handles))))
+    ;; (format t "~%compiled handles: ~a ~%" (hash->assoc tag-handles))
+    ))
 
-
-(define-yy-rule %l-directive-document ()
-  (postimes l-directive)
-  (compile-tag-handles)
-  l-explicit-document)
 
 (define-yy-rule l-any-document ()
   (|| l-directive-document
