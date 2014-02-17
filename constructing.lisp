@@ -267,3 +267,23 @@
     (if (equal (length result) 1)
 	(cadar result)
 	(error "Simple form assumed, but multiple documents found in the input."))))
+
+(define-condition yaml-load-file-error (simple-error)
+  ((message :initarg :message :reader yaml-load-file-error-message)))
+
+(defun yaml-load-file (path &key (schema :core) (size-limit 1024) (on-size-exceed :error))
+  (when (probe-file path)
+    (let ((file-length (with-open-file (stream path :element-type '(unsigned-byte 8))
+			 (file-length stream))))
+      (if (< size-limit file-length)
+	  (cond
+	    ((eq :error on-size-exceed)
+	     (error 'yaml-load-file-error :message "Size of file exceeds the limit set in SIZE-LIMIT"))
+	    ((eq :warn on-size-exceed)
+	     (warn "Size of file exceeds the limit set in SIZE-LIMIT, ignoring config"))
+	    ((eq nil on-size-exceed) nil))
+	  (with-open-file (stream path)
+	    (let ((seq (make-string file-length)))
+	      (read-sequence seq stream)
+	      (yaml-simple-load seq :schema schema)))))))
+	  

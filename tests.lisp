@@ -760,8 +760,7 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 			   ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "bar"))
 			   ((:properties) (:content . "baz"))
 			   (:alias . "a1"))))
-	     (nserialize (gen-shared-sequence1)))))
-
+	     (nserialize (gen-shared-sequence1))))
   (is (equal '((:properties (:anchor . "a1") (:tag . "tag:yaml.org,2002:seq"))
 	       (:content . ((:alias . "a1")
 			    ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "foo")))))
@@ -772,3 +771,39 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 				     (((:properties) (:content . "baz"))
 				      . (:alias . "a1")))))
 	     (nserialize (gen-shared-mapping1)))))
+
+
+;;; Tests for loading of config files
+
+(defun make-random-file-name (&optional (prefix "/tmp/cl-yy-"))
+  (concatenate 'string
+	       prefix
+	       (iter (for i from 1 to 8)
+		     (collect (code-char (+ (char-code #/a) (random 26)))))))
+
+(defmacro with-tmp-file ((var &optional prefix) &body body)
+  `(let ((,var (make-random-file-name ,@(if prefix `(,prefix)))))
+     (unwind-protect (progn ,@body)
+       (delete-file ,var))))
+
+(defparameter *config-string*
+  #?"a : b\nc : d\ne : f")
+
+(test yaml-load-file
+  (is (equal '(("a" . "b") ("c" . "d") ("e" . "f"))
+	     (with-tmp-file (path)
+	       (with-open-file (stream path :direction :output :if-exists :supersede)
+		 (write-sequence *config-string* stream))
+	       (hash->assoc (yaml-load-file path)))))
+  (signals (cl-yy::yaml-load-file-error)
+    (with-tmp-file (path)
+      (with-open-file (stream path :direction :output :if-exists :supersede)
+	(write-sequence *config-string* stream))
+      (hash->assoc (yaml-load-file path :size-limit 2))))
+  (is (equal nil
+	     (with-tmp-file (path)
+	       (with-open-file (stream path :direction :output :if-exists :supersede)
+		 (write-sequence *config-string* stream))
+	       (yaml-load-file path :size-limit 2 :on-size-exceed nil)))))
+	     
+    

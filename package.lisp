@@ -10,4 +10,5 @@
   (:shadowing-import-from #:alexandria #:flatten #:symbolicate)
   (:export #:yaclyaml-parse #:yy-parse
 	   #:ncompose-representation-graph #:construct #:yaml-load #:hash->assoc #:yaml-simple-load
+	   #:yaml-load-file
 	   #:nserialize #:represent-node))

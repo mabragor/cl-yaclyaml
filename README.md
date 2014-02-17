@@ -28,7 +28,24 @@ and affects tag implication and resolution.
 Technically, process of loading is done in three stages: parsing of raw-text, composing of representation graph
 and construction of native language structures.
 
-What remains to be done:
+
+Also, (mainly for loading of config files) there is YAML-LOAD-FILE function
+
+```lisp
+CL-USER> (cl-yy::yaml-load-file "~/.my-config.yml" :size-limit 100 :on-size-exceed :warn)
+```
+where SIZE-LIMIT (default 1024) is the critical size of file in bytes,
+ above which parsing will not be performed
+(so as not to be DDoS'ed).
+
+ON-SIZE-EXCEED can be either :ERROR (default), or :WARN or NIL. In case of :ERROR YAML-LOAD-FILE-ERROR
+is signalled, in case of :WARN warning is printed and NIL is returned, as if config file was absent,
+and in case of NIL, NIL is silently returned with no warning whatsoever.
+
+
+TODO:
+-----
+
   * :LISP tag-resolution schema, which would support lisp-specific data types, such as symbols, arrays, alists and so on.
   * user-friendly errors, when parsing fails
   * parsing not only of strings, but also of streams
