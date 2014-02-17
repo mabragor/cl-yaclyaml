@@ -18,7 +18,9 @@
 	     ;; need to create an alias node
 	     (progn ;; (format t "Encountered node for at least second time.~%")
 		    (let ((alias-name (format nil "a~a" (incf alias-count))))
-		      (push `(:anchor . ,alias-name) (cdr (assoc :properties node)))
+		      ;; KLUDGE: here we assume that :PROPERTIES is the first assoc-element
+		      ;; and content is the second
+		      (setf (car node) `(:properties (:anchor . ,alias-name) ,.(cdar node)))
 		      (values (setf (gethash node node-aliases) `(:alias . ,alias-name))
 			      t)))
 	     (progn ;; (format t "Encountered node for the first time. ")
