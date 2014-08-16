@@ -15,31 +15,32 @@
 
 ;;; Indicator characters
 
-(define-alias-rules (;; block structure indicators
-		     (c-sequence-entry #\-)
-		     (c-mapping-key #\?)
-		     (c-mapping-value #\:)
-		     ;; flow collection indicators
-		     (c-colon-entry #\,)
-		     (c-sequence-start #\[)
-		     (c-sequence-end #\])
-		     (c-mapping-start #\{)
-		     (c-mapping-end #\})))
+;; block structure indicators
+(define-alias-rule c-sequence-entry #\-)
+(define-alias-rule c-mapping-key #\?)
+(define-alias-rule c-mapping-value #\:)
 
-(define-alias-rules (;; comments
-		     (c-comment #\#)
-		     ;; tags and aliases
-		     (c-anchor #\&)
-		     (c-alias #\*)
-		     (c-tag #\!)
-		     ;; block-scalar style
-		     (c-literal #\|)
-		     (c-folded #\>)
-		     ;; quoted scalars
-		     (c-single-quote #\')
-		     (c-double-quote #\")
-		     (c-directive #\%)
-		     (c-reserved (|| #\@ #\`))))
+;; flow collection indicators
+(define-alias-rule c-colon-entry #\,)
+(define-alias-rule c-sequence-start #\[)
+(define-alias-rule c-sequence-end #\])
+(define-alias-rule c-mapping-start #\{)
+(define-alias-rule c-mapping-end #\})
+
+;; comments
+(define-alias-rule c-comment #\#)
+;; tags and aliases
+(define-alias-rule c-anchor #\&)
+(define-alias-rule c-alias #\*)
+(define-alias-rule c-tag #\!)
+;; block-scalar style
+(define-alias-rule c-literal #\|)
+(define-alias-rule c-folded #\>)
+;; quoted scalars
+(define-alias-rule c-single-quote #\')
+(define-alias-rule c-double-quote #\")
+(define-alias-rule c-directive #\%)
+(define-alias-rule c-reserved (|| #\@ #\`))
 
 (defun c-printable-p (char)
   (let ((code (char-code char)))
