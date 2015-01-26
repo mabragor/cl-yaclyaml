@@ -307,7 +307,7 @@
     (if yaml-version
 	(fail-parse "The YAML directive must be only given once per document.")
 	(if (not (equal (car version) 1))
-	    (fail-parse "Major version ~a differs from processor's version." (car version))
+	    (fail-parse-format "Major version ~a differs from processor's version." (car version))
 	    (progn (if (> (cadr version) 2)
 		       (warn-parse "Minor version is greater than that of the processor, attempt to parse anyway."))
 		   (setf yaml-version version)
@@ -385,7 +385,7 @@
 
 (defun resolve-handle (handle position text)
   (or (gethash handle tag-handles)
-      (fail-parse "Unknown handle ~a. Did you forget to declare it?" handle)))
+      (fail-parse-format "Unknown handle ~a. Did you forget to declare it?" handle)))
 		
 (define-yy-rule c-ns-shorthand-tag ()
   (let ((handle c-tag-handle)

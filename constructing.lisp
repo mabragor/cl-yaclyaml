@@ -271,7 +271,8 @@
 (define-condition yaml-load-file-error (simple-error)
   ((message :initarg :message :reader yaml-load-file-error-message)))
 
-(defun yaml-load-file (path &key (schema :core) (size-limit 1024) (on-size-exceed :error))
+(defun yaml-load-file (path &key (schema :core) (size-limit 4096) (on-size-exceed :error)
+			      (simple t))
   (when (probe-file path)
     (let ((file-length (with-open-file (stream path :element-type '(unsigned-byte 8))
 			 (file-length stream))))
@@ -285,7 +286,9 @@
 	  (with-open-file (stream path)
 	    (let ((seq (make-string file-length)))
 	      (read-sequence seq stream)
-	      (yaml-simple-load seq :schema schema)))))))
+	      (if simple
+		  (yaml-simple-load seq :schema schema)
+		  (yaml-load seq :schema schema))))))))
 	  
 (defmacro define-yaml-config (reader-name (path var
 						&key schema size-limit (on-size-exceed :warn))

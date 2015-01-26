@@ -664,6 +664,9 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 	     (sort (hash->assoc (cadar (yaml-load #?"sun : gold\nearth : green\nmoon : blue")))
 		   #'string< :key #'car))))
 
+(test special-symbols
+  (is (equal "~/.ssh/id_rsa" (cl-yy::yaml-simple-load "'~/.ssh/id_rsa'"))))
+
 (test simple-cyclics
   (let ((simplest-cyclic (yaml-simple-load #?"&foo\n- 1\n- *foo\n- 2\n- 3")))
     (is (equal 1 (car simplest-cyclic)))
