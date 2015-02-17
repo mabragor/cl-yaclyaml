@@ -383,14 +383,14 @@
 (define-yy-rule c-verbatim-tag ()
   `(:tag . ,(text (progm "!<" (postimes ns-uri-char) ">"))))
 
-(defun resolve-handle (handle position text)
+(defun resolve-handle (handle)
   (or (gethash handle tag-handles)
       (fail-parse-format "Unknown handle ~a. Did you forget to declare it?" handle)))
 		
 (define-yy-rule c-ns-shorthand-tag ()
   (let ((handle c-tag-handle)
 	(meat (postimes ns-tag-char)))
-    `(:tag . ,(text (resolve-handle handle position text) meat))))
+    `(:tag . ,(text (resolve-handle handle) meat))))
 
 (define-yy-rule c-non-specific-tag ()
   `(:tag .  ,(progn "!" :vanilla)))
