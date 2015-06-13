@@ -12,7 +12,7 @@
   :author "Alexander Popolitov <popolit@itep.ru>"
   :license "GPL"
   :depends-on (#:iterate #:rutils #:cl-test-more #:cl-interpol
-			 #:esrap-liquid #:alexandria #:zs3
+			 #:esrap-liquid #:alexandria
 			 #:yaclanapht #:cl-ppcre #:defmacro-enhance #:parse-number
 			 #:cl-read-macro-tokens)
   :components ((:file "package")
