@@ -780,7 +780,7 @@ omitted value:,\n: omitted key,'':'',\n}"))))
   (concatenate 'string
 	       prefix
 	       (iter (for i from 1 to 8)
-		     (collect (code-char (+ (char-code #/a) (random 26)))))))
+		     (collect (code-char (+ (char-code #\a) (random 26)))))))
 
 (defmacro with-tmp-file ((var &optional prefix) &body body)
   `(let ((,var (make-random-file-name ,@(if prefix `(,prefix)))))
