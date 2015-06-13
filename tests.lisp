@@ -56,7 +56,7 @@
     (is (equal #?"\n" (yaclyaml-parse 's-flow-folded #?" \n \n  \t ")))
     (is (equal #?"\n" (yaclyaml-parse 's-flow-folded #?"\n\n  ")))
     (is (equal " " (yaclyaml-parse 's-flow-folded #?"\n")))))
-  
+
 
 (test block-scalar-header
   (is (equal '((:block-indentation-indicator . "3") (:block-chomping-indicator . "-"))
@@ -91,7 +91,7 @@
   (is (equal #?"foobar\n  * bullet\n  * list\n\n  * lines\n"
 	     (yaclyaml-parse 'c-l-block-scalar
 			     #?">\n foobar\n   * bullet\n   * list\n\n   * lines\n"))))
-      
+
 (test plain-scalars-simple
   (is (equal #?"1st non-empty\n2nd non-empty 3rd non-empty"
 	     (yaclyaml-parse 'ns-plain
@@ -125,8 +125,8 @@
   (is (equal #?" 1st non-empty\n2nd non-empty 3rd non-empty "
 	     (yaclyaml-parse 'c-single-quoted
 			     #?"' 1st non-empty\n\n 2nd non-empty \n\t3rd non-empty '"))))
-  
-  
+
+
 (test flow-sequence-nodes
   (is (equal '(((:properties (:tag . :non-specific)) (:content . "one"))
 	       ((:properties (:tag . :non-specific)) (:content . "two")))
@@ -198,7 +198,7 @@
 			 . ((:properties (:tag . "tag:yaml.org,2002:str")) (:content . "separate"))))
 	     (yaclyaml-parse 'c-flow-mapping
 			     #?"{\nunquoted : \"separate\"}"))))
-  
+
 (test flow-mapping-nodes-complex)
 
 (test flow-mapping-nodes-complex
@@ -317,7 +317,7 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 	     (let ((cl-yy::n 0)) (yaclyaml-parse 'l+block-sequence #?"  - one\n  - two : three\n"))))
   (is (equal '(((:PROPERTIES (:TAG . :NON-SPECIFIC)) (:CONTENT . "block sequence"))
 	       14)
-	     (multiple-value-list 
+	     (multiple-value-list
 	      (let ((cl-yy::n 0)
 		    (indent-style :determined))
 		(yaclyaml-parse 'ns-s-block-map-implicit-key #?"block sequence:\n  - one\n  - two : three\n"
@@ -373,7 +373,7 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 					 ((:properties (:tag . :non-specific)) (:content . "two")))))))
 	     (let ((cl-yy::n -1))
 	       (yaclyaml-parse 'l+block-mapping #?"? |\n  block key\n: - one # Explicit compact\n  - two # block value\n")))))
-  
+
 (test block-mappings-implicit
   (is (equal `(:mapping (((:properties (:tag . :non-specific)) (:content . "block mapping"))
 			 . ((:properties (:tag . :non-specific))
@@ -417,7 +417,7 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 	     (let ((cl-yy::n -1))
 	       (yaclyaml-parse 'l+block-mapping #?"!!str &a1 \"foo\":\n  !!str bar\n&a2 baz : *a1\n")))))
 
-(test bare-document  
+(test bare-document
   (is (equal '((:document ((:properties (:tag . :non-specific)) (:content . "Bare document"))) 14)
 	     (multiple-value-list (yaclyaml-parse 'l-bare-document
 						  #?"Bare document\n...\n# No document\n...\n|\n%!PS-Adobe-2.0 # Not the first line\n" :junk-allowed t))))
@@ -485,7 +485,7 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 	       (cl-yy::compile-tag-handles)
 	       (hash->assoc cl-yy::tag-handles)))))
 
-  
+
 (test tag-shorthands
   (is (equal '((:document ((:properties (:tag . :non-specific))
 			   (:content . (((:properties (:tag . "!local")) (:content . "foo"))
@@ -561,8 +561,8 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 ;; 						   ,@body)))))))
 ;; 	     (with-simple-chain (1 5)
 ;; 	       (cl-yaclyaml::find-parents chain))))))))
-	     
-	
+
+
 (test scalar-construction-failsafe
   (is (equal '((:content . "asdf") (:tag . :non-specific))
 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :failsafe)))
@@ -570,8 +570,8 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:str"))) (:content . "asdf")) :schema :failsafe)))
   (is (equal '((:content . :empty) (:tag . "tag:yaml.org,2002:null"))
 	     (construct '((:properties . ((:tag . "tag:yaml.org,2002:null"))) (:content . :empty)) :schema :failsafe))))
-  
-  
+
+
 (test scalar-construction-json
   (signals (error "JSON impication of scalar didn't signal an error.")
       (construct '((:properties . ((:tag . :non-specific))) (:content . "asdf")) :schema :json))
@@ -585,7 +585,7 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 	     (construct '((:properties . ((:tag . :non-specific))) (:content . :empty)) :schema :json)))
   (is (equal nil
 	     (construct '((:properties . ((:tag . :non-specific))) (:content . "null")) :schema :json))))
-  
+
 
 (test scalar-construction-core
   (is (equal "asdf"
@@ -693,7 +693,7 @@ omitted value:,\n: omitted key,'':'',\n}"))))
     (is (eq (cdar (first alias-mapping)) (cdar (third alias-mapping))))
     (is (eq (caar (first alias-mapping)) (caar (fourth alias-mapping))))
     (is (eq (cdar (first alias-mapping)) (cdar (fourth alias-mapping))))))
-  
+
 
 ;;;; tests for process of dumping
 
@@ -731,7 +731,7 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 	       res)))
   )
 
-      
+
 (defun gen-shared-sequence1 ()
   (declare (optimize (safety 3) (speed 0)))
   (let ((lst (list `(,(list :properties '(:tag . "tag:yaml.org,2002:str")) (:content . "foo"))
@@ -806,5 +806,3 @@ omitted value:,\n: omitted key,'':'',\n}"))))
 	       (with-open-file (stream path :direction :output :if-exists :supersede)
 		 (write-sequence *config-string* stream))
 	       (yaml-load-file path :size-limit 2 :on-size-exceed nil)))))
-	     
-    
