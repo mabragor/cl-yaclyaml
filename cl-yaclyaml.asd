@@ -22,6 +22,8 @@
                (:file "parsing-macro-2")
                (:file "parsing")
                (:file "composing")
+               (:file "convert")
+               (:file "schema")
                (:file "constructing")
                (:file "representing")
                (:file "serializing")
