@@ -257,6 +257,7 @@
 	       (%depth-first-traverse `(,representation-graph)))))
     (gethash representation-graph converted-nodes)))
   
+
 (defun yaml-load (string &key (schema :core))
   (iter (for (document content) in (ncompose-representation-graph (yaclyaml-parse 'l-yaml-stream string)))
 	(collect `(:document ,(construct content :schema schema)))))
@@ -289,7 +290,7 @@
 	      (if simple
 		  (yaml-simple-load seq :schema schema)
 		  (yaml-load seq :schema schema))))))))
-	  
+
 (defmacro define-yaml-config (reader-name (path var
 						&key schema size-limit (on-size-exceed :warn))
 			      &rest variable-specs)

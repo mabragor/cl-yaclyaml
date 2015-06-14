@@ -12,23 +12,23 @@
   :author "Alexander Popolitov <popolit@itep.ru>"
   :license "GPL"
   :depends-on (#:iterate #:rutils #:cl-test-more #:cl-interpol
-			 #:esrap-liquid #:alexandria
-			 #:yaclanapht #:cl-ppcre #:defmacro-enhance #:parse-number
-			 #:cl-read-macro-tokens)
+                         #:esrap-liquid #:alexandria
+                         #:yaclanapht #:cl-ppcre #:defmacro-enhance #:parse-number
+                         #:cl-read-macro-tokens)
   :components ((:file "package")
-	       ;; (:file "esrap-parser-basics")
-	       (:file "macro-utils")
-	       (:file "parsing-macro")
-	       (:file "parsing-macro-2")
-	       (:file "parsing")
-	       (:file "composing")
-	       (:file "constructing")
-	       (:file "representing")
-	       (:file "serializing")
-	       ;; (:file "cl-yaclyaml-new")
+               ;; (:file "esrap-parser-basics")
+               (:file "macro-utils")
+               (:file "parsing-macro")
+               (:file "parsing-macro-2")
+               (:file "parsing")
+               (:file "composing")
+               (:file "constructing")
+               (:file "representing")
+               (:file "serializing")
+               ;; (:file "cl-yaclyaml-new")
                ;; (:file "cl-yaclyaml")
                ;; (:file "cl-yaclyaml-t")))
-	       ))
+               ))
 
 (defsystem :cl-yaclyaml-tests
   :description "Tests for CL-YACLYAML."

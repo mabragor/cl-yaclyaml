@@ -149,11 +149,11 @@
     (%represent-node x)))
 
 (defun plist-p (x)
+  (declare (ignorable x))
   "Returns T if X is a property list in a narrow sense - all odd elements are non-duplicating symbols."
   nil)
 
 (defun alist-p (x)
+  (declare (ignorable x))
   "Returns T if X is an association list in a narrow sense - all CAR's of assocs are non-duplicating symbols."
   nil)
-
-
