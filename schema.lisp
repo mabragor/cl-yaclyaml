@@ -112,7 +112,21 @@ installed by the schema."
   "Hash table of available schemas. The keys are symbols and the
 values are instances of YAML-SCHEMA.")
 
+(defun register-schema (name class-name &rest init-args)
+  (declare (type symbol name class-name))
+  "Register a schema with a symbol. After registering, the symbol can be passed
+as the SCHEMA argument to the parsing functions.
+
+This function creates a new instance of CLASS-NAME with the arguments passed as
+INIT-ARGS and registers it with the symbol NAME.
+
+NAME: The symbol for the schema to be registered.
+CLASS-NAME: The symbol for the name of the class of the schema to create and register.
+INIT-ARGS: Additional arguments to pass to MAKE-INSTANCE."
+  (setf (gethash name schemas)
+        (apply #'make-instance class-name init-args)))
+
 ;;; Initially populate the schemas table.
-(setf (gethash :failsafe schemas) (make-instance 'failsafe-schema))
-(setf (gethash :json schemas) (make-instance 'json-schema))
-(setf (gethash :core schemas) (make-instance 'core-schema))
+(register-schema :failsafe 'failsafe-schema)
+(register-schema :json 'json-schema)
+(register-schema :core 'core-schema)
