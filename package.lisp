@@ -7,7 +7,7 @@
 	#:parse-number #:cl-ppcre)
   (:shadowing-import-from #:cl-test-more
                           :ok :plan :finalize :is :isnt :is-expand :diag)
-  (:shadowing-import-from #:alexandria #:flatten #:symbolicate)
+  (:shadowing-import-from #:alexandria #:flatten #:symbolicate #:make-keyword)
   (:export #:yaclyaml-parse #:yy-parse
 	   #:ncompose-representation-graph #:construct #:yaml-load #:hash->assoc #:yaml-simple-load
 	   #:yaml-load-file #:define-yaml-config
