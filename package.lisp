@@ -19,5 +19,6 @@
            #:register-schema
            ;; Conversion of parsed data
            #:install-scalar-converter #:install-sequence-converter #:install-mapping-converter
-           #:convert-scalar #:convert-sequence #:convert-mapping
+           #:install-sequence-list-converter #:install-mapping-hashtable-converter
+           #:convert-node #:convert-scalar #:convert-sequence #:convert-mapping
            #:convert-sequence-to-list #:convert-mapping-to-hashtable))

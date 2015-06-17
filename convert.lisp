@@ -27,13 +27,67 @@
   (gethash node visited-nodes))
 
 (defun install-scalar-converter (tag converter)
+  "Install a scalar converter in the current scheme.
+Should be called from an INSTALL-CONVERTERS method.
+
+TAG is a string containing the yaml tag for the content.
+CONVERTER is a function which takes a string containing the scalar
+input and returns the converted value."
   (setf (gethash tag scalar-converters) converter))
 (defun install-sequence-converter (tag converter)
+  "Install a sequence converter in the current scheme.
+Should be called from an INSTALL-CONVERTERS method.
+
+TAG is a string containing the yaml tag for the content.
+CONVERTER is a function which takes a list of raw nodes
+as input and returns the converted value.
+
+The converter function should convert the nodes, either with
+CONVERT-SEQUENCE-TO-LIST, or CONVERT-NODE on each node."
   (setf (gethash tag sequence-converters) converter))
 (defun install-mapping-converter (tag converter)
+  "Install a mapping converter in the current scheme.
+Should be called from an INSTALL-CONVERTERS method.
+
+TAG is a string containing the yaml tag for the content.
+CONVERTER is a function which takes a raw mapping node
+as input and returns the converted value.
+
+The content is a list where the CAR is the keyword :MAPPING
+and the CDR is an alist of key-value pairs, where both the key and
+value are raw nodes.
+
+The converter function should convert the sub-nodes, either with
+CONVERT-SEQUENCE-TO-LIST, or CONVERT-NODE on each node."
   (setf (gethash tag mapping-converters) converter))
 (defun trivial-scalar-converter (content)
   (copy-seq content))
+
+(defun install-sequence-list-converter (tag converter)
+  "Install a sequence converter in the current scheme.
+Should be called from an INSTALL-CONVERTERS method.
+
+TAG is a string containing the yaml tag for the content.
+CONVERTER is a function that takes a list of converted values
+and returns the converted value from the list.
+
+This is probably preferable to INSTALL-SEQUENCE-CONVERTER in user code."
+  (setf (gethash tag sequence-converters)
+        (lambda (content)
+          (funcall converter (convert-sequence-to-list content)))))
+
+(defun install-mapping-hashtable-converter (tag converter)
+  "Install a mapping converter in the current scheme.
+Should be called from an INSTALL-CONVERTERS method.
+
+TAG is a string containing the yaml tag for the content.
+CONVERTER is a function that takes a hash-table of converted values
+and returns the converted value from the list.
+
+This is probably preferable to INSTALL-MAPPING-CONVERTER in user code."
+  (setf (gethash tag mapping-converters)
+        (lambda (content)
+          (funcall converter (convert-mapping-to-hashtable content)))))
 
 (defun convert-scalar (content tag)
   (let ((converter (gethash tag scalar-converters)))
@@ -55,7 +109,26 @@
 	(funcall converter content)
 	`((:content . ,(convert-mapping-to-hashtable content)) (:tag . ,tag)))))
 
+(defun convert-node (node)
+  "Convert a parsed node into a user object."
+  (when (not (nth-value 1 (gethash node converted-nodes)))
+      (let* ((content (cdr (assoc :content node)))
+             (properties (cdr (assoc :properties node)))
+             (tag (cdr (assoc :tag properties))))
+        (setf (gethash node converted-nodes)
+              (cond ((scalar-p node)
+                     (convert-scalar content tag))
+                    ((mapping-p node)
+                     (convert-mapping content tag))
+                    (t (convert-sequence content tag)))))
+      (iter (for callback in
+                 (gethash node initialization-callbacks))
+            (funcall callback))
+      (remhash node initialization-callbacks))
+  (gethash node converted-nodes))
+
 (defun convert-sequence-to-list (nodes)
+  "Convert a raw sequence node to a list of converted values."
   (let (result last-cons)
     (macrolet! ((collect-result (o!-node)
 		 `(if result
@@ -79,6 +152,7 @@
       result)))
 
 (defun convert-mapping-to-hashtable (content)
+  "Convert a raw mapping node to a hash-table of converted values."
   (let ((result (make-hash-table :test #'equal)))
     (iter (for (key . val) in (cdr content)) ; CAR of content is :MAPPING keyword
 	  (multiple-value-bind (conv-key got-key) (gethash key converted-nodes)
@@ -153,18 +227,5 @@
 	    (finally (if next-level
 			 (%depth-first-traverse next-level (1+ level)))
 		     (iter (for node in cur-level)
-			   (when (not (gethash node converted-nodes))
-			     (let* ((content (cdr (assoc :content node)))
-				    (properties (cdr (assoc :properties node)))
-				    (tag (cdr (assoc :tag properties))))
-			       (setf (gethash node converted-nodes)
-				     (cond ((scalar-p node)
-					    (convert-scalar content tag))
-					   ((mapping-p node)
-					    (convert-mapping content tag))
-					   (t (convert-sequence content tag)))))
-			     (iter (for callback in
-					(gethash node initialization-callbacks))
-				   (funcall callback))
-			     (remhash node initialization-callbacks)))
+			   (convert-node node))
 		     )))))
