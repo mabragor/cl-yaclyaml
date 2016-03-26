@@ -706,7 +706,7 @@
       (:content . ,(|| ns-l-compact-sequence ns-l-compact-mapping)))))
 		  
 (define-yy-rule ns-l-compact-sequence ()
-  `(,c-l-block-seq-entry
+  `(,(v c-l-block-seq-entry)
     ,.(times (progn (v s-indent-=n) (v c-l-block-seq-entry)))))
 
 (define-yy-rule l+block-mapping ()
