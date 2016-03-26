@@ -2,8 +2,6 @@
 
 (in-package #:cl-yaclyaml)
 
-(enable-read-macro-tokens)
-
 ;;; Parsing presentation stream
 
 (register-yaclyaml-context n nil)
@@ -78,30 +76,30 @@
       c-mapping-start c-mapping-end))
 
 (define-yaclyaml-rule b-line-feed ()
-  #\newline)
+  (v #\newline))
 (define-yaclyaml-rule b-carriage-return ()
-  #\return)
+  (v #\return))
 (define-yaclyaml-rule b-char ()
   (|| b-line-feed b-carriage-return))
 
 (define-yaclyaml-rule b-break ()
-  (|| (list b-carriage-return b-line-feed)
+  (|| (list (v b-carriage-return) (v b-line-feed))
       b-carriage-return
       b-line-feed)
-  (literal-char #\newline))
+  #\newline)
 
 ;; ;; TODO - include BOM
 (define-yy-rule nb-char ()
   (! b-char)
-  character)
+  (v character))
 
-(define-yy-rule s-space () #\space)
-(define-yy-rule s-tab () #\tab)
+(define-yy-rule s-space () (v #\space))
+(define-yy-rule s-tab () (v #\tab))
 (define-yy-rule s-white () (|| s-space s-tab))
 
 (define-yy-rule ns-char ()
   (! s-white)
-  nb-char)
+  (v nb-char))
 
 ;; ;; TODO: write a character-ranges macro
 ;; ;; TODO: write ~ (ignore-case macro)
@@ -124,7 +122,7 @@
       #\-))
 
 (define-yy-rule ns-uri-char ()
-  (text (|| (list #\% ns-hex-digit ns-hex-digit)
+  (text (|| (list (v #\%) (v ns-hex-digit) (v ns-hex-digit))
 	    ns-word-char
 	    #\# #\; #\/ #\? #\: #\@ #\& #\= #\+ #\$ #\,
 	    #\_ #\. #\! #\~ #\* #\' #\( #\) #\[ #\])))
@@ -132,45 +130,45 @@
 (define-yy-rule ns-tag-char ()
   (! #\!)
   (! c-flow-indicator)
-  ns-uri-char)
+  (v ns-uri-char))
 
 ;; ;; Escaped characters
 
-(define-yy-rule c-escape () #\\)
+(define-yy-rule c-escape () (v #\\))
 
-(define-yy-rule ns-esc-null () #\0 (code-char 0))
-(define-yy-rule ns-esc-bell () #\a (code-char 7))
-(define-yy-rule ns-esc-backspace () #\b (code-char 8))
-(define-yy-rule ns-esc-horizontal-tab () #\t (code-char 9))
-(define-yy-rule ns-esc-line-feed () #\n (code-char 10))
-(define-yy-rule ns-esc-vertical-tab () #\v (code-char 11))
-(define-yy-rule ns-esc-form-feed () #\f (code-char 12))
-(define-yy-rule ns-esc-carriage-return () #\r (code-char 13))
-(define-yy-rule ns-esc-escape () #\e (code-char 27))
-(define-yy-rule ns-esc-space () #\space nil)
-(define-yy-rule ns-esc-double-quote () #\") ; TODO: fix this sad notation flaw ")
-(define-yy-rule ns-esc-slash () #\/)
-(define-yy-rule ns-esc-backslash () #\\)
-(define-yy-rule ns-esc-next-line () #\N (code-char 133))
-(define-yy-rule ns-esc-non-breaking-space () #\_ (code-char 160))
-(define-yy-rule ns-esc-line-separator () #\L (code-char 8232))
-(define-yy-rule ns-esc-paragraph-separator () #\P (code-char 8233))
+(define-yy-rule ns-esc-null () (v #\0) (code-char 0))
+(define-yy-rule ns-esc-bell () (v #\a) (code-char 7))
+(define-yy-rule ns-esc-backspace () (v #\b) (code-char 8))
+(define-yy-rule ns-esc-horizontal-tab () (v #\t) (code-char 9))
+(define-yy-rule ns-esc-line-feed () (v #\n) (code-char 10))
+(define-yy-rule ns-esc-vertical-tab () (v #\v) (code-char 11))
+(define-yy-rule ns-esc-form-feed () (v #\f) (code-char 12))
+(define-yy-rule ns-esc-carriage-return () (v #\r) (code-char 13))
+(define-yy-rule ns-esc-escape () (v #\e) (code-char 27))
+(define-yy-rule ns-esc-space () (v #\space) nil)
+(define-yy-rule ns-esc-double-quote () (v #\")) ; TODO: fix this sad notation flaw ")
+(define-yy-rule ns-esc-slash () (v #\/))
+(define-yy-rule ns-esc-backslash () (v #\\))
+(define-yy-rule ns-esc-next-line () (v #\N) (code-char 133))
+(define-yy-rule ns-esc-non-breaking-space () (v #\_) (code-char 160))
+(define-yy-rule ns-esc-line-separator () (v #\L) (code-char 8232))
+(define-yy-rule ns-esc-paragraph-separator () (v #\P) (code-char 8233))
 (define-yy-rule ns-esc-8-bit ()
-  #\x
+  (v #\x)
   (code-char (parse-integer (text (times ns-hex-digit :exactly 2))
 			    :radix 16)))
 (define-yy-rule ns-esc-16-bit ()
-  #\u
+  (v #\u)
   (code-char (parse-integer (text (times ns-hex-digit :exactly 4))
 			    :radix 16)))
 (define-yy-rule ns-esc-32-bit ()
-  #\U
+  (v #\U)
   (code-char (parse-integer (text (times ns-hex-digit :exactly 8))
 			    :radix 16)))
     
 
 (define-yy-rule c-ns-esc-char ()
-  #\\
+  (v #\\)
   (|| ns-esc-null
       ns-esc-bell
       ns-esc-backspace
@@ -195,14 +193,14 @@
 ;; ;; Indentation
 
 (define-yy-rule s-indent-<n ()
-  (length (cond-parse (autodetect-indent-style (times s-space))
-		      (determined-indent-style (times s-space :upto (- n 1))))))
+  (length (cond-parse ((v autodetect-indent-style) (times s-space))
+		      ((v determined-indent-style) (times s-space :upto (- n 1))))))
 (define-yy-rule s-indent-<=n ()
-  (length (cond-parse (autodetect-indent-style (times s-space))
-		      (determined-indent-style (times s-space :upto n)))))
+  (length (cond-parse ((v autodetect-indent-style) (times s-space))
+		      ((v determined-indent-style) (times s-space :upto n)))))
 (define-yy-rule s-indent-=n ()
-  (length (cond-parse (autodetect-indent-style (times s-space :from (+ n 1)))
-		      (determined-indent-style (times s-space :exactly n)))))
+  (length (cond-parse ((v autodetect-indent-style) (times s-space :from (+ n 1)))
+		      ((v determined-indent-style) (times s-space :exactly n)))))
 
 (define-yy-rule start-of-line ()
   (|| (<- sof) (<- b-char)))
@@ -211,27 +209,27 @@
   (|| (postimes s-white)
       start-of-line))
 
-(define-yy-rule s-block-line-prefix () s-indent-=n)
+(define-yy-rule s-block-line-prefix () (v s-indent-=n))
 (define-yy-rule s-flow-line-prefix ()
-  (list s-indent-=n
+  (list (v s-indent-=n)
 	(? s-separate-in-line)))
 (define-yy-rule s-line-prefix ()
-  (cond-parse ((|| block-out-context block-in-context) s-block-line-prefix)
-	      ((|| flow-out-context flow-in-context) s-flow-line-prefix)))
+  (cond-parse ((|| block-out-context block-in-context) (v s-block-line-prefix))
+	      ((|| flow-out-context flow-in-context) (v s-flow-line-prefix))))
 
 (define-yy-rule l-empty ()
   (|| s-line-prefix s-indent-<n)
-  b-break)
+  (v b-break))
 
 (define-yy-rule b-l-trimmed ()
-  b-break
+  (v b-break)
   (make-string (length (postimes l-empty))
-	       :initial-element (literal-char #\newline)))
+	       :initial-element #\newline))
 
 (define-yy-rule b-as-space ()
-  b-break
+  (v b-break)
   (! l-empty)
-  (literal-string " "))
+  " ")
 
 (define-yy-rule b-l-folded ()
   (|| b-l-trimmed b-as-space))
@@ -239,28 +237,28 @@
 
 (define-yy-rule s-flow-folded ()
   (? s-separate-in-line)
-  (prog1 flow-in-b-l-folded
-    s-flow-line-prefix))
+  (prog1 (v flow-in-b-l-folded)
+    (v s-flow-line-prefix)))
 
 ;; comments
 
 (define-yy-rule c-nb-comment-text ()
-  #\#
+  (v #\#)
   (times nb-char)
   nil)
 
 (define-yy-rule b-comment () (|| (-> eof)  b-char))
 
 (define-yy-rule s-b-comment ()
-  (? (progn s-separate-in-line
+  (? (progn (v s-separate-in-line)
 	    (? c-nb-comment-text)))
-  b-comment
+  (v b-comment)
   nil)
 
 (define-yy-rule l-comment ()
-  s-separate-in-line
+  (v s-separate-in-line)
   (? c-nb-comment-text)
-  b-comment
+  (v b-comment)
   nil)
 
 (define-yy-rule s-l-comments ()
@@ -271,30 +269,30 @@
 ;; ;; separation lines
 
 (define-yy-rule s-separate-lines ()
-  (|| (progn s-l-comments
-	     s-flow-line-prefix)
+  (|| (progn (v s-l-comments)
+	     (v s-flow-line-prefix))
       s-separate-in-line)
-  (literal-string " "))
+  " ")
 
 (define-yy-rule s-separate ()
   (cond-parse ((|| block-out-context
 		   block-in-context
 		   flow-out-context
-		   flow-in-context) s-separate-lines)
-	      ((|| block-key-context flow-key-context) s-separate-in-line)))
+		   flow-in-context) (v s-separate-lines))
+	      ((|| block-key-context flow-key-context) (v s-separate-in-line))))
 
 ;; ;; Directives (finally, something non-trivial)
 
 (define-yy-rule l-directive ()
-  #\%
+  (v #\%)
   (prog1 (|| ns-yaml-directive
 	     ns-tag-directive
 	     ns-reserved-directive)
-    s-l-comments))
+    (v s-l-comments)))
 
 (define-yy-rule ns-reserved-directive ()
-  (list ns-directive-name (times (progn s-separate-in-line
-					ns-directive-parameter))))
+  (list (v ns-directive-name) (times (progn (v s-separate-in-line)
+					    (v ns-directive-parameter)))))
 (define-yy-rule ns-directive-name () (postimes ns-char))
 (define-yy-rule ns-directive-parameter () (postimes ns-char))
 
@@ -303,7 +301,7 @@
 
 (defparameter yaml-version nil)
 (define-yy-rule ns-yaml-directive ()
-  (let ((version (progn "YAML" s-separate-in-line ns-yaml-version)))
+  (let ((version (progn (v "YAML") (v s-separate-in-line) (v ns-yaml-version))))
     (if yaml-version
 	(fail-parse "The YAML directive must be only given once per document.")
 	(if (not (equal (car version) 1))
@@ -316,7 +314,7 @@
 
 (define-yy-rule ns-yaml-version ()
   (let* ((major (postimes ns-dec-digit))
-	 (pt #\.)
+	 (pt (v #\.))
 	 (minor (postimes ns-dec-digit)))
     (declare (ignore pt))
     `(,(parse-integer (text major)) ,(parse-integer (text minor)))))
@@ -332,11 +330,11 @@
 
 
 (define-yy-rule ns-tag-directive ()
-  (let* ((tag "TAG")
-	 (sep s-separate-in-line)
-	 (handle c-tag-handle)
-	 (sep1 s-separate-in-line)
-	 (prefix ns-tag-prefix))
+  (let* ((tag (v "TAG"))
+	 (sep (v s-separate-in-line))
+	 (handle (v c-tag-handle))
+	 (sep1 (v s-separate-in-line))
+	 (prefix (v ns-tag-prefix)))
     (declare (ignore tag sep sep1))
     ;; (format t (literal-string "got tag directive: ~a ~a~%") handle prefix)
     (if (gethash handle tag-handles)
@@ -350,31 +348,31 @@
       c-secondary-tag-handle
       c-primary-tag-handle))
 (define-yy-rule c-primary-tag-handle ()
-  #\! :primary-tag-handle)
+  (v #\!) :primary-tag-handle)
 (define-yy-rule c-secondary-tag-handle ()
-  "!!" :secondary-tag-handle)
+  (v "!!") :secondary-tag-handle)
 (define-yy-rule c-named-tag-handle ()
-  `(:named-tag-handle ,(text (progn #\!
+  `(:named-tag-handle ,(text (progn (v #\!)
 				    (prog1 (postimes ns-word-char)
-				      #\!)))))
+				      (v #\!))))))
 		
 
 (define-yy-rule ns-tag-prefix ()
   (text (|| c-ns-local-tag-prefix
 	    ns-global-tag-prefix)))
 (define-yy-rule c-ns-local-tag-prefix ()
-  (list #\! (times ns-uri-char)))
+  (list (v #\!) (times ns-uri-char)))
 (define-yy-rule ns-global-tag-prefix ()
-  (list ns-tag-char (times ns-uri-char)))
+  (list (v ns-tag-char) (times ns-uri-char)))
   
 ;;; Node properties
 
 (define-yy-rule c-ns-properties ()
   `(:properties ,@(remove-if-not #'identity
-				 (|| (list c-ns-tag-property (? (progn s-separate
-								       c-ns-anchor-property)))
-				     (list c-ns-anchor-property (? (progn s-separate
-									  c-ns-tag-property)))))))
+				 (|| (list (v c-ns-tag-property) (? (progn (v s-separate)
+									   (v c-ns-anchor-property))))
+				     (list (v c-ns-anchor-property) (? (progn (v s-separate)
+									      (v c-ns-tag-property))))))))
 
 (define-yy-rule c-ns-tag-property ()
   (|| c-verbatim-tag
@@ -388,29 +386,29 @@
       (fail-parse-format "Unknown handle ~a. Did you forget to declare it?" handle)))
 		
 (define-yy-rule c-ns-shorthand-tag ()
-  (let ((handle c-tag-handle)
+  (let ((handle (v c-tag-handle))
 	(meat (postimes ns-tag-char)))
     `(:tag . ,(text (resolve-handle handle) meat))))
 
 (define-yy-rule c-non-specific-tag ()
-  `(:tag .  ,(progn "!" :vanilla)))
+  `(:tag .  ,(progn (v "!") :vanilla)))
 
 (define-yy-rule c-ns-anchor-property ()
-  `(:anchor . ,(text (progn #\& ns-anchor-name))))
+  `(:anchor . ,(text (progn (v #\&) (v ns-anchor-name)))))
 (define-yy-rule ns-anchor-char ()
   (! c-flow-indicator)
-  ns-char)
+  (v ns-char))
 (define-yy-rule ns-anchor-name ()
   (postimes ns-anchor-char))
 
 ;;; alias nodes
 (define-yy-rule c-ns-alias-node ()
-  `(:alias . ,(text (progn #\* ns-anchor-name))))
+  `(:alias . ,(text (progn (v #\*) (v ns-anchor-name)))))
 
 ;;; empty node
 (define-yy-rule e-scalar () :empty)
 (define-yy-rule e-node ()
-  `((:properties (:tag . :non-specific)) (:content . ,e-scalar)))
+  `((:properties (:tag . :non-specific)) (:content . ,(v e-scalar))))
     
 ;;; double-quoted-scalars
 
@@ -418,20 +416,20 @@
   (|| c-ns-esc-char
       (progn (! #\\)
 	     (! #\")
-	     nb-json)))
+	     (v nb-json))))
 (define-yy-rule ns-double-char ()
   (! s-white)
-  nb-double-char)
+  (v nb-double-char))
 
 
 (define-yy-rule c-double-quoted ()
   (text (progm #\" nb-double-text #\")))
 (define-yy-rule nb-double-text ()
-  (cond-parse ((|| block-key-context flow-key-context) nb-double-one-line)
+  (cond-parse ((|| block-key-context flow-key-context) (v nb-double-one-line))
 	      ((|| block-out-context
 		   block-in-context
 		   flow-out-context
-		   flow-in-context) nb-double-multi-line)))
+		   flow-in-context) (v nb-double-multi-line))))
 
 (define-yy-rule nb-double-one-line ()
   (times nb-double-char))
@@ -440,27 +438,27 @@
 
 (define-yy-rule s-double-escaped ()
   (destructuring-bind (white slash bnc empties pref)
-      (list (times s-white) #\\ b-non-content
-	    (times flow-in-l-empty) s-flow-line-prefix)
+      (list (times s-white) (v #\\) (v b-non-content)
+	    (times flow-in-l-empty) (v s-flow-line-prefix))
     (declare (ignore slash bnc))
     `(,white ,empties ,(mapcar (lambda (x)
 				 (if (numberp x)
-				     (make-string x :initial-element (literal-char #\space))
+				     (make-string x :initial-element #\space)
 				     x))
 			       pref))))
 (define-yy-rule s-double-break ()
   (|| s-double-escaped s-flow-folded))
 (define-yy-rule nb-ns-double-in-line ()
-  (times (list (times s-white) ns-double-char)))
+  (times (list (times s-white) (v ns-double-char))))
 (define-yy-rule s-double-next-line ()
-  (list s-double-break
-	(? (list ns-double-char
-		 nb-ns-double-in-line
-		 (|| s-double-next-line (times s-white))))))
+  (list (v s-double-break)
+	(? (list (v ns-double-char)
+		 (v nb-ns-double-in-line)
+		 (|| (v s-double-next-line) (times s-white))))))
 
 (define-yy-rule nb-double-multi-line ()
-  (list nb-ns-double-in-line
-	(|| s-double-next-line (times s-white))))
+  (list (v nb-ns-double-in-line)
+	(|| (v s-double-next-line) (times s-white))))
 
 (defun whitespace-p (text)
   (iter (for char in-string text)
@@ -471,50 +469,49 @@
 
 ;;; single-quoted-scalars
 (define-yy-rule c-quoted-quote ()
-  "''"
-  (literal-char #\'))
+  (v #\') (v #\'))
 (define-yy-rule nb-single-char ()
   (|| c-quoted-quote
       (progn (! #\')
-	     nb-json)))
+	     (v nb-json))))
 (define-yy-rule ns-single-char ()
   (! s-white)
-  nb-single-char)
+  (v nb-single-char))
 
 (define-yy-rule c-single-quoted ()
   (text (progm #\' nb-single-text #\')))
 (define-yy-rule nb-single-text ()
-  (cond-parse ((|| block-key-context flow-key-context) nb-single-one-line)
+  (cond-parse ((|| block-key-context flow-key-context) (v nb-single-one-line))
 	      ((|| block-out-context
 		   block-in-context
 		   flow-out-context
-		   flow-in-context) nb-single-multi-line)))
+		   flow-in-context) (v nb-single-multi-line))))
 
 (define-yy-rule nb-single-one-line ()
   (times nb-single-char))
 
 (define-yy-rule nb-ns-single-in-line ()
-  (times (list (times s-white) ns-single-char)))
+  (times (list (times s-white) (v ns-single-char))))
 (define-yy-rule s-single-next-line ()
-  (list s-flow-folded
-	(? (list ns-single-char
-		 nb-ns-single-in-line
+  (list (v s-flow-folded)
+	(? (list (v ns-single-char)
+		 (v nb-ns-single-in-line)
 		 (|| s-single-next-line (times s-white))))))
 (define-yy-rule nb-single-multi-line ()
-  (list nb-ns-single-in-line
+  (list (v nb-ns-single-in-line)
 	(|| s-single-next-line
 	    (times s-white))))
 
 ;; Block scalars
 
 (define-yy-rule c-b-block-header ()
-  (prog1 (|| (list c-indentation-indicator-ne c-chomping-indicator)
-	     (list c-chomping-indicator-ne c-indentation-indicator)
-	     (list c-chomping-indicator c-indentation-indicator))
-    s-b-comment))
+  (prog1 (|| (list (v c-indentation-indicator-ne) (v c-chomping-indicator))
+	     (list (v c-chomping-indicator-ne) (v c-indentation-indicator))
+	     (list (v c-chomping-indicator) (v c-indentation-indicator)))
+    (v s-b-comment)))
 
 (define-yy-rule c-indentation-indicator-ne ()
-  `(:block-indentation-indicator . ,(string ns-dec-digit)))
+  `(:block-indentation-indicator . ,(string (v ns-dec-digit))))
 (define-yy-rule c-indentation-indicator ()
   `(:block-indentation-indicator . ,(string (|| ns-dec-digit
 						""))))
@@ -528,48 +525,48 @@
 	(collect `(,key . ,val))))
 
 (define-yy-rule b-chomped-last ()
-  b-break
+  (v b-break)
   (case block-scalar-chomping
-    (:clip (literal-char #\newline))
-    (:keep (literal-char #\newline))
+    (:clip #\newline)
+    (:keep #\newline)
     (:strip nil)))
 
 (define-yy-rule b-non-content ()
-  b-break
+  (v b-break)
   nil)
 (define-yy-rule b-as-line-feed ()
-  b-break)
+  (v b-break))
 
 (define-yy-rule l-chomped-empty ()
   (cond-parse ((|| strip-block-scalar-chomping
-		   clip-block-scalar-chomping) l-strip-empty)
-	      (keep-block-scalar-chomping l-keep-empty)))
+		   clip-block-scalar-chomping) (v l-strip-empty))
+	      ((v keep-block-scalar-chomping) (v l-keep-empty))))
 (define-yy-rule l-strip-empty ()
-  (times (progn s-indent-<=n b-non-content))
+  (times (progn (v s-indent-<=n) (v b-non-content)))
   (? l-trail-comments)
-  "")
+  (v ""))
 (define-yy-rule l-keep-empty ()
   (list (times l-empty)
 	(? l-trail-comments)))
 (define-yy-rule l-trail-comments ()
-  s-indent-<n
-  c-nb-comment-text
-  b-comment
+  (v s-indent-<n)
+  (v c-nb-comment-text)
+  (v b-comment)
   (times l-comment)
-  "")
+  (v ""))
 
 (define-yy-rule l-literal-content ()
-  (text (? (list l-nb-literal-text
+  (text (? (list (v l-nb-literal-text)
 		 (times b-nb-literal-next)
-		 b-chomped-last))
-	l-chomped-empty))
+		 (v b-chomped-last)))
+	(v l-chomped-empty)))
 
 (let ((chomping-map '(("+" . :keep) ("-" . :strip) ("" . :clip)))
       (style-map '(("|" . :literal) (">" . :folded))))
   (define-yy-rule c-l-block-scalar ()
     (macrolet ((call-parser ()
-		 `(text block-scalar-content)))
-      (let ((header (list (|| "|" ">") c-b-block-header)))
+		 `(text (v block-scalar-content))))
+      (let ((header (list (|| "|" ">") (v c-b-block-header))))
 	(let ((block-scalar-chomping (cdr (assoc (cdr (assoc :block-chomping-indicator
 							     (cadr header)))
 						 chomping-map
@@ -587,11 +584,11 @@
 		  (call-parser)))))))))
 
 (define-yy-rule block-scalar-content ()
-  (let ((wrapper (cond-parse (autodetect-indent-style detect-indent)
+  (let ((wrapper (cond-parse ((v autodetect-indent-style) (v detect-indent))
 			     (t ""))))
     (macrolet ((call-parser ()
-		 `(cond-parse (literal-block-scalar-style l-literal-content)
-			      (folded-block-scalar-style l-folded-content))))
+		 `(cond-parse ((v literal-block-scalar-style) (v l-literal-content))
+			      ((v folded-block-scalar-style) (v l-folded-content)))))
       (if (equal wrapper "")
 	  (call-parser)
 	  (let ((n wrapper)
@@ -603,41 +600,41 @@
 
 (define-yy-rule l-nb-literal-text ()
   (list (times l-empty)
-	(progn s-indent-=n (postimes nb-char))))
+	(progn (v s-indent-=n) (postimes nb-char))))
 
 (define-yy-rule b-nb-literal-next ()
-  (list b-as-line-feed l-nb-literal-text))
+  (list (v b-as-line-feed) (v l-nb-literal-text)))
 				    
 (define-yy-rule s-nb-folded-text ()
-  s-indent-=n
-  (list ns-char (times nb-char)))
+  (v s-indent-=n)
+  (list (v ns-char) (times nb-char)))
 (define-yy-rule l-nb-folded-lines ()
-  (list s-nb-folded-text
-	(times (list b-l-folded s-nb-folded-text))))
+  (list (v s-nb-folded-text)
+	(times (list (v b-l-folded) (v s-nb-folded-text)))))
 
 (define-yy-rule s-nb-spaced-text ()
-  s-indent-=n
-  (list s-white (times nb-char)))
+  (v s-indent-=n)
+  (list (v s-white) (times nb-char)))
 (define-yy-rule b-l-spaced ()
-  (list b-as-line-feed (times l-empty)))
+  (list (v b-as-line-feed) (times l-empty)))
 (define-yy-rule l-nb-spaced-lines ()
-  (list s-nb-spaced-text
-	(times (list b-l-spaced s-nb-spaced-text))))
+  (list (v s-nb-spaced-text)
+	(times (list (v b-l-spaced) (v s-nb-spaced-text)))))
 (define-yy-rule l-nb-same-lines ()
   (list (times l-empty)
 	(|| l-nb-folded-lines l-nb-spaced-lines)))
 (define-yy-rule l-nb-diff-lines ()
-  (list l-nb-same-lines
-	(times (list b-as-line-feed l-nb-same-lines))))
+  (list (v l-nb-same-lines)
+	(times (list (v b-as-line-feed) (v l-nb-same-lines)))))
 (define-yy-rule l-folded-content ()
-  (list (? (list l-nb-diff-lines b-chomped-last))
-	l-chomped-empty))
+  (list (? (list (v l-nb-diff-lines) (v b-chomped-last)))
+	(v l-chomped-empty)))
 
 ;;; Plain scalars
 
 (define-yy-rule ns-plain-first ()
   (|| (progn (! c-indicator)
-	     ns-char)
+	     (v ns-char))
       (prog1 (|| #\? #\: #\-)
 	(& ns-plain-safe))))
 
@@ -645,62 +642,62 @@
   (cond-parse ((|| flow-out-context
 		   block-key-context
 		   block-in-context
-		   block-out-context) ns-plain-safe-out)
-	      ((|| flow-in-context flow-key-context) ns-plain-safe-in)))
-(define-yy-rule ns-plain-safe-out () ns-char)
+		   block-out-context) (v ns-plain-safe-out))
+	      ((|| flow-in-context flow-key-context) (v ns-plain-safe-in))))
+(define-yy-rule ns-plain-safe-out () (v ns-char))
 (define-yy-rule ns-plain-safe-in ()
   (! c-flow-indicator)
-  ns-char)
+  (v ns-char))
 (define-yy-rule ns-plain-char ()
-  (cond-parse ((list (! #\:) (! #\#)) ns-plain-safe)
-	      ((<- ns-char) #\#)
-	      (t (prog1 #\: (-> ns-plain-safe)))))
+  (cond-parse ((list (! #\:) (! #\#)) (v ns-plain-safe))
+	      ((<- ns-char) (v #\#))
+	      (t (prog1 (v #\:) (-> ns-plain-safe)))))
   
 (define-yy-rule ns-plain ()
   (cond-parse ((|| flow-out-context
 		   flow-in-context
 		   block-out-context
-		   block-in-context) ns-plain-multi-line)
-	      ((|| block-key-context flow-key-context) ns-plain-one-line)))
+		   block-in-context) (v ns-plain-multi-line))
+	      ((|| block-key-context flow-key-context) (v ns-plain-one-line))))
 
 (define-yy-rule nb-ns-plain-in-line ()
-  (times (list (times s-white) ns-plain-char)))
+  (times (list (times s-white) (v ns-plain-char))))
 (define-yy-rule ns-plain-one-line ()
-  (text ns-plain-first nb-ns-plain-in-line))
+  (text (v ns-plain-first) (v nb-ns-plain-in-line)))
 
 (define-yy-rule s-ns-plain-next-line ()
-  (list s-flow-folded ns-plain-char nb-ns-plain-in-line))
+  (list (v s-flow-folded) (v ns-plain-char) (v nb-ns-plain-in-line)))
 (define-yy-rule ns-plain-multi-line ()
-  (text ns-plain-one-line (times s-ns-plain-next-line)))
+  (text (v ns-plain-one-line) (times s-ns-plain-next-line)))
 
 ;; block sequences
 
 (define-yy-rule l+block-sequence ()
-  (let ((n detect-block-sequence)
+  (let ((n (v detect-block-sequence))
         (indent-style :determined)
         (context :block-in))
-    (postimes (progn s-indent-=n
-		     c-l-block-seq-entry))))
+    (postimes (progn (v s-indent-=n)
+		     (v c-l-block-seq-entry)))))
 
 (define-yy-rule detect-block-sequence ()
   (let ((indent-style :autodetect))
-    (& (prog1 s-indent-=n
-	 (& (list #\- (! ns-char)))))))
+    (& (prog1 (v s-indent-=n)
+	 (& (list (v #\-) (! ns-char)))))))
 
 (define-yy-rule detect-block-mapping ()
   (let ((indent-style :autodetect))
-    (& (prog1 s-indent-=n
-	 ns-char))))
+    (& (prog1 (v s-indent-=n)
+	 (v ns-char)))))
 
 (define-yy-rule c-l-block-seq-entry ()
-  "-" (! ns-char)
-  s-l+block-indented)
+  (v "-") (! ns-char)
+  (v s-l+block-indented))
 
 (define-yy-rule s-l+block-indented ()
   (|| compact-block-node
       s-l+block-node
-      (prog1 e-node
-	s-l-comments)))
+      (prog1 (v e-node)
+	(v s-l-comments))))
 
 (define-yy-rule compact-block-node ()
   (let ((n (+ n 1 (length (postimes s-space))))
@@ -710,50 +707,50 @@
 		  
 (define-yy-rule ns-l-compact-sequence ()
   `(,c-l-block-seq-entry
-    ,.(times (progn s-indent-=n c-l-block-seq-entry))))
+    ,.(times (progn (v s-indent-=n) (v c-l-block-seq-entry)))))
 
 (define-yy-rule l+block-mapping ()
-  (let ((n detect-block-mapping)
+  (let ((n (v detect-block-mapping))
 	(indent-style :determined))
-    `(:mapping ,.(postimes (progn s-indent-=n ns-l-block-map-entry)))))
+    `(:mapping ,.(postimes (progn (v s-indent-=n) (v ns-l-block-map-entry))))))
 
 (define-yy-rule ns-l-block-map-entry ()
   (destructuring-bind (key value) (|| c-l-block-map-explicit-entry
 				      ns-l-block-map-implicit-entry)
     `(,key . ,value)))
 (define-yy-rule c-l-block-map-explicit-entry ()
-  (list c-l-block-map-explicit-key
+  (list (v c-l-block-map-explicit-key)
 	(|| l-block-map-explicit-value
 	    e-node)))
 
 (define-yy-rule c-l-block-map-explicit-key ()
   (let ((context :block-out))
-    #\?
-    s-l+block-indented))
+    (v #\?)
+    (v s-l+block-indented)))
 (define-yy-rule l-block-map-explicit-value ()
   (let ((context :block-out))
-    s-indent-=n
-    ":"
-    s-l+block-indented))
+    (v s-indent-=n)
+    (v ":")
+    (v s-l+block-indented)))
 
 (define-yy-rule ns-l-block-map-implicit-entry ()
   (list (|| ns-s-block-map-implicit-key
 	    e-node)
-	c-l-block-map-implicit-value))
+	(v c-l-block-map-implicit-value)))
 (define-yy-rule ns-s-block-map-implicit-key ()
   (let ((context :block-key))
     (|| c-s-implicit-json-key
 	ns-s-implicit-yaml-key)))
 (define-yy-rule c-l-block-map-implicit-value ()
-  #\:
+  (v #\:)
   (let ((context :block-out))
     (|| s-l+block-node
-	(prog1 e-node
-	  s-l-comments))))
+	(prog1 (v e-node)
+	  (v s-l-comments)))))
 
 (define-yy-rule ns-l-compact-mapping ()
-  `(:mapping ,ns-l-block-map-entry ,.(times (progn s-indent-=n
-						   ns-l-block-map-entry))))
+  `(:mapping ,(v ns-l-block-map-entry) ,.(times (progn (v s-indent-=n)
+						       (v ns-l-block-map-entry)))))
 
 ;; block nodes
 
@@ -769,22 +766,22 @@
 
 (define-yy-rule s-separate-n+1 ()
   (let ((n (1+ n)))
-    s-separate))
+    (v s-separate)))
 
 (defparameter vanilla-scalar-tag "tag:yaml.org,2002:str")
 (defparameter vanilla-mapping-tag "tag:yaml.org,2002:map")
 (defparameter vanilla-sequence-tag "tag:yaml.org,2002:seq")
 
 (define-yy-rule s-l+block-scalar ()
-  s-separate-n+1
-  (let ((props block-node-properties)
-	(content c-l-block-scalar))
+  (v s-separate-n+1)
+  (let ((props (v block-node-properties))
+	(content (v c-l-block-scalar)))
     (crunch-tag-into-properties props vanilla-scalar-tag vanilla-scalar-tag)
     `(,props (:content . ,content))))
 
 (define-yy-rule block-node-properties ()
   (let ((n (1+ n)))
-    (? (progn s-separate c-ns-properties))))
+    (? (progn (v s-separate) (v c-ns-properties)))))
 
 (defun seq-spaces (n)
   (if (eql context :block-out)
@@ -792,8 +789,8 @@
       n))
 
 (define-yy-rule s-l+block-collection ()
-  (let ((props block-node-properties))
-    s-l-comments
+  (let ((props (v block-node-properties)))
+    (v s-l-comments)
     (let ((content (|| l+block-sequence-seq-spaces
 		       l+block-mapping)))
       (crunch-tag-into-properties props :non-specific
@@ -805,7 +802,7 @@
 
 (define-yy-rule l+block-sequence-seq-spaces ()
   (let ((n (seq-spaces n)))
-    l+block-sequence))
+    (v l+block-sequence)))
 
 ;; flow collections
 
@@ -815,67 +812,67 @@
     ((:block-key :flow-key) :flow-key)))
 
 (define-yy-rule c-flow-sequence ()
-  #\[ (? s-separate)
+  (v #\[) (? s-separate)
   (let ((context (in-flow context)))
     (prog1 (? ns-s-flow-seq-entries)
-      #\])))
+      (v #\]))))
 
 (define-yy-rule ns-s-flow-seq-entries ()
-  (let ((entry ns-flow-seq-entry))
+  (let ((entry (v ns-flow-seq-entry)))
     (? s-separate)
-    (let ((entries (? (progn #\, (? s-separate) (? ns-s-flow-seq-entries)))))
+    (let ((entries (? (progn (v #\,) (? s-separate) (? ns-s-flow-seq-entries)))))
       `(,entry ,. entries))))
 
 (define-yy-rule ns-flow-seq-entry ()
   (|| ns-flow-pair ns-flow-node))
 
 (define-yy-rule c-flow-mapping ()
-  #\{ (? s-separate)
+  (v #\{) (? s-separate)
   (let ((context (in-flow context)))                   
     `(:mapping ,. (prog1 (? ns-s-flow-map-entries)
-		    #\}))))
+		    (v #\})))))
 
 (define-yy-rule ns-s-flow-map-entries ()
-  (let ((entry ns-flow-map-entry))
+  (let ((entry (v ns-flow-map-entry)))
     (? s-separate)
-    (let ((entries (? (progn #\, (? s-separate) (? ns-s-flow-map-entries)))))
+    (let ((entries (? (progn (v #\,) (? s-separate) (? ns-s-flow-map-entries)))))
       `(,entry ,. entries))))
 
 (define-yy-rule ns-flow-map-entry ()
-  (destructuring-bind (key value) (|| (progn #\? s-separate ns-flow-map-explicit-entry)
+  (destructuring-bind (key value) (|| (progn (v #\?) (v s-separate) (v ns-flow-map-explicit-entry))
 				      ns-flow-map-implicit-entry)
     `(,key . ,value)))
 (define-yy-rule ns-flow-map-explicit-entry ()
   (|| ns-flow-map-implicit-entry
-      (list e-node e-node)))
+      (list (v e-node) (v e-node))))
 
 (define-yy-rule ns-flow-map-implicit-entry ()
   (|| ns-flow-map-yaml-key-entry
       c-ns-flow-map-empty-key-entry
       c-ns-flow-map-json-key-entry))
 (define-yy-rule ns-flow-map-yaml-key-entry ()
-  (list ns-flow-yaml-node
-	(|| (progn (? s-separate) c-ns-flow-map-separate-value)
+  (list (v ns-flow-yaml-node)
+	(|| (progn (? s-separate) (v c-ns-flow-map-separate-value))
 	    e-node)))
 (define-yy-rule c-ns-flow-map-empty-key-entry ()
-  (list e-node c-ns-flow-map-separate-value))
+  (list (v e-node) (v c-ns-flow-map-separate-value)))
 
 (define-yy-rule c-ns-flow-map-separate-value ()
-  #\: (! ns-plain-safe)
-  (|| (progn s-separate ns-flow-node)
+  (v #\:) (! ns-plain-safe)
+  (|| (progn (v s-separate) (v ns-flow-node))
       e-node))
 
 (define-yy-rule c-ns-flow-map-json-key-entry ()
-  (list c-flow-json-node
-	(|| (progn (? s-separate) c-ns-flow-map-adjacent-value)
+  (list (v c-flow-json-node)
+	(|| (progn (? s-separate) (v c-ns-flow-map-adjacent-value))
 	    e-node)))
 (define-yy-rule c-ns-flow-map-adjacent-value ()
-  #\:
-  (|| (progn (? s-separate) ns-flow-node)
+  (v #\:)
+  (|| (progn (? s-separate) (v ns-flow-node))
       e-node))
 
 (define-yy-rule ns-flow-pair ()
-  (destructuring-bind (key value) (|| (progn #\? s-separate ns-flow-map-explicit-entry)
+  (destructuring-bind (key value) (|| (progn (v #\?) (v s-separate) (v ns-flow-map-explicit-entry))
                                       ns-flow-pair-entry)
     `(:mapping (,key . ,value))))
 
@@ -889,31 +886,31 @@
 (define-context-forcing-rule flow-key c-s-implicit-json-key)
 
 (define-yy-rule ns-flow-pair-yaml-key-entry ()
-  (list flow-key-ns-s-implicit-yaml-key
-	c-ns-flow-map-separate-value))
+  (list (v flow-key-ns-s-implicit-yaml-key)
+	(v c-ns-flow-map-separate-value)))
 
 (define-yy-rule c-ns-flow-pair-json-key-entry ()
-  (list flow-key-c-s-implicit-json-key
-	c-ns-flow-map-adjacent-value))
+  (list (v flow-key-c-s-implicit-json-key)
+	(v c-ns-flow-map-adjacent-value)))
 
 ;; FIXME: implement restriction on the length of the key
 ;; FIXME: implement n/a in the indentation portion
 (define-yy-rule ns-s-implicit-yaml-key ()
-  (prog1 ns-flow-yaml-node
+  (prog1 (v ns-flow-yaml-node)
     (? s-separate-in-line)))
 (define-yy-rule c-s-implicit-json-key ()
-  (prog1 c-flow-json-node
+  (prog1 (v c-flow-json-node)
     (? s-separate-in-line)))
 
-(define-yy-rule ns-flow-yaml-content () ns-plain)
+(define-yy-rule ns-flow-yaml-content () (v ns-plain))
 (define-yy-rule c-flow-json-content ()
   (|| c-flow-sequence
       c-flow-mapping
       c-single-quoted
       c-double-quoted))
 (define-yy-rule ns-flow-content ()
-  (|| (list :yaml ns-flow-yaml-content)
-      (list :json c-flow-json-content)))
+  (|| (list :yaml (v ns-flow-yaml-content))
+      (list :json (v c-flow-json-content))))
 
 
 (defmacro with-ensured-properties-not-alias (var &body body)
@@ -934,13 +931,13 @@
 	`(,props (:content . ,content))))))
 				    
 (define-yy-rule ns-flow-yaml-properties-node ()
-  `(,c-ns-properties (:content . ,(|| (progn s-separate ns-flow-yaml-content)
-				      e-scalar))))
+  `(,(v c-ns-properties) (:content . ,(|| (progn (v s-separate) (v ns-flow-yaml-content))
+					  e-scalar))))
 
 (define-yy-rule c-flow-json-node ()
-  (let ((props (? (prog1 c-ns-properties
-		    s-separate)))
-	(content c-flow-json-content))
+  (let ((props (? (prog1 (v c-ns-properties)
+		    (v s-separate))))
+	(content (v c-flow-json-content)))
     (if (atom content)
 	(crunch-tag-into-properties props vanilla-scalar-tag vanilla-scalar-tag)
 	(crunch-tag-into-properties props :non-specific (if (equal (car content) :mapping)
@@ -969,15 +966,15 @@
 	  `(,props (:content . ,content)))))))
 
 (define-yy-rule ns-flow-properties-node ()
-  `(,c-ns-properties
-    (:content . ,(|| (progn s-separate ns-flow-content)
-		     (list :yaml e-scalar)))))
+  `(,(v c-ns-properties)
+    (:content . ,(|| (progn (v s-separate) (v ns-flow-content))
+		     (list :yaml (v e-scalar))))))
 
 ;;; YaML documents
 
 ;; FIXME: correct definition of byte-order-mark
 (define-yy-rule c-byte-order-mark ()
-  (progn #\UEFBB #\INVERTED_QUESTION_MARK :utf8-bom))
+  (progn (v #\UEFBB) (v #\INVERTED_QUESTION_MARK) :utf8-bom))
 
 (define-yy-rule l-document-prefix ()
   (list (? c-byte-order-mark) (times l-comment)))
@@ -986,10 +983,10 @@
 (define-yy-rule c-document-end ()
   (times #\. :exactly 3))
 (define-yy-rule l-document-suffix ()
-  (list c-document-end s-l-comments))
+  (list (v c-document-end) (v s-l-comments)))
 
 (define-yy-rule c-forbidden ()
-  (list start-of-line
+  (list (v start-of-line)
 	(|| c-directives-end c-document-end)
 	(|| b-char s-white (-> eof))))
 
@@ -1004,8 +1001,8 @@
       `(:document ,(yy-parse 's-l+block-node (text text))))))
 
 (define-yy-rule l-explicit-document ()
-  (let ((text (progn c-directives-end (|| l-bare-document
-					  (prog1 e-node s-l-comments)))))
+  (let ((text (progn (v c-directives-end) (|| l-bare-document
+					      (prog1 (v e-node) (v s-l-comments))))))
     `(:document ,(if (and (consp text) (eql (car text) :document))
 		     (cadr text)
 		     text))))
@@ -1019,7 +1016,7 @@
 	(setf (gethash :secondary-tag-handle tag-handles) default-yaml-tagspace))
     (if (not (gethash :primary-tag-handle tag-handles))
 	(setf (gethash :primary-tag-handle tag-handles) default-local-tagspace))
-    l-explicit-document))
+    (v l-explicit-document)))
 
 (let (path)
   (declare (special path))
