@@ -60,12 +60,13 @@
 
 (defun convert-sequence-to-list (nodes)
   (let (result last-cons)
-    (macrolet! ((collect-result (o!-node)
-		 `(if result
-		      (progn (setf (cdr last-cons) (list ,o!-node))
-			     (setf last-cons (cdr last-cons)))
-		      (progn (setf result (list ,o!-node))
-			     (setf last-cons result)))))
+    (macrolet ((collect-result (o!-node)
+		 (once-only (o!-node)
+		   `(if result
+			(progn (setf (cdr last-cons) (list ,o!-node))
+			       (setf last-cons (cdr last-cons)))
+			(progn (setf result (list ,o!-node))
+			       (setf last-cons result))))))
       (iter (for subnode in nodes)
 	    (multiple-value-bind (it got) (gethash subnode converted-nodes)
 	      (if got

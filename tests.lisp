@@ -1,13 +1,12 @@
 (in-package :cl-user)
 
 (defpackage :cl-yaclyaml-tests
-  (:use :alexandria :cl :cl-yaclyaml :fiveam :iterate :cl-read-macro-tokens)
+  (:use :alexandria :cl :cl-yaclyaml :fiveam :iterate)
   (:export #:run-tests))
 
 (in-package :cl-yaclyaml-tests)
 
 (cl-interpol:enable-interpol-syntax)
-(enable-read-macro-tokens)
 
 (def-suite yaclyaml)
 (in-suite yaclyaml)
