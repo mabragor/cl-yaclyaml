@@ -3,6 +3,8 @@ cl-yaclyaml
 
 Yet Another Common Lisp YaML processor (so far, only loader, but not dumper)
 
+Now completely implementation-independent!
+
 Tries to adhere to YAML 1.2 specification (see www.yaml.org)
 
 High-level interface is provided by exported YAML-LOAD function.
@@ -48,6 +50,6 @@ TODO:
 
   * :LISP tag-resolution schema, which would support lisp-specific data types, such as symbols, arrays, alists and so on.
   * user-friendly errors, when parsing fails
-  * parsing not only of strings, but also of streams
+  * (done, thanks to upgrade of ESRAP-LIQUID) parsing not only of strings, but also of streams
   * YAML-DUMP, the complement of YAML-LOAD
   * UTF-16 and UTF-32 support (Yaml processor should support them, ouch)
