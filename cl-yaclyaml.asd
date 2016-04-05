@@ -13,7 +13,7 @@
   :license "GPL"
   :depends-on (#:iterate #:rutils #:cl-test-more #:cl-interpol
 			 #:esrap-liquid #:alexandria
-			 #:yaclanapht #:cl-ppcre #:parse-number)
+			 #:cl-ppcre #:parse-number)
   :components ((:file "package")
 	       ;; (:file "esrap-parser-basics")
 	       (:file "macro-utils")

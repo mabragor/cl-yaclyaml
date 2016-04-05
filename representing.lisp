@@ -130,16 +130,24 @@
   (declare (special initialization-callbacks))
   (declare (special visited-cache))
   (setf (gethash x visited-cache) t)
-  (a:acond-got ((gethash x representation-cache) it)
-	       (t (let ((res (a:acond-got ((represent-mapping x) it)
-					  ((represent-sequence x) it)
-					  ((represent-scalar x) it)
-					  (t (error "Failed to represent object: ~a" x)))))
-		    (setf (gethash x representation-cache) res)
-		    (iter (for callback in (gethash x initialization-callbacks))
-			  (funcall callback))
-		    (remhash x initialization-callbacks)
-		    res))))
+  (multiple-value-bind (it got) (gethash x representation-cache)
+    (if got
+	it
+	(let ((res (multiple-value-bind (it got) (represent-mapping x)
+		     (if got
+			 it
+			 (multiple-value-bind (it got) (represent-sequence x)
+			   (if got
+			       it
+			       (multiple-value-bind (it got) (represent-scalar x)
+				 (if got
+				     it
+				     (error "Failed to represent object: ~a" x)))))))))
+	  (setf (gethash x representation-cache) res)
+	  (iter (for callback in (gethash x initialization-callbacks))
+		(funcall callback))
+	  (remhash x initialization-callbacks)
+	  res))))
 
 (defun represent-node (x)
   (let ((representation-cache (make-hash-table :test #'eq))
