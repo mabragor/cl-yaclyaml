@@ -998,7 +998,11 @@
     (let ((n -1)
 	  (indent-style :determined)
 	  (context :block-in))
-      `(:document ,(yy-parse 's-l+block-node (text text))))))
+      (let ((it (handler-case (yy-parse 's-l+block-node (text text))
+		  (esrap-liquid::simple-esrap-error ()
+		    (fail-parse "Bare document parse failed")))))
+	`(:document ,it)))))
+						     
 
 (define-yy-rule l-explicit-document ()
   (let ((text (progn (v c-directives-end) (|| l-bare-document
