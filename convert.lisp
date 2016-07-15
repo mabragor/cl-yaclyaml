@@ -130,7 +130,7 @@ This is probably preferable to INSTALL-MAPPING-CONVERTER in user code."
 (defun convert-sequence-to-list (nodes)
   "Convert a raw sequence node to a list of converted values."
   (let (result last-cons)
-    (macrolet! ((collect-result (o!-node)
+    (macrolet ((collect-result (o!-node)
 		 `(if result
 		      (progn (setf (cdr last-cons) (list ,o!-node))
 			     (setf last-cons (cdr last-cons)))
