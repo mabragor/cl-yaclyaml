@@ -117,3 +117,11 @@ This relies on the parser parsing yaml null as :null instead of nil."
                :else
                  :collect (format nil "~a: ~a"
                                   key (stringify value)))))))
+
+;;; dump to file
+(defun dump-file (yaml path &key if-exists (if-does-not-exist :create))
+  (with-open-file (out path
+                       :direction :output
+                       :if-exists if-exists
+                       :if-does-not-exist if-does-not-exist)
+    (write-sequence (stringify yaml) out)))

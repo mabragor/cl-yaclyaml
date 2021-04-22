@@ -21,4 +21,4 @@
            #:convert-node #:convert-scalar #:convert-sequence #:convert-mapping
            #:convert-sequence-to-list #:convert-mapping-to-hashtable
            ;; for serialization
-           #:stringify))
+           #:stringify #:dump-file))
