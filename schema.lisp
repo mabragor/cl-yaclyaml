@@ -51,7 +51,8 @@ installed by the schema."
 
 (defmethod install-converters progn ((schema json-schema))
   (install-scalar-converter "tag:yaml.org,2002:null" (lambda (content)
-                                                       (declare (ignore content))))
+                                                       (declare (ignore content))
+                                                       :null))
   (install-scalar-converter "tag:yaml.org,2002:bool"
                                (lambda (content)
                                  (if (all-matches
