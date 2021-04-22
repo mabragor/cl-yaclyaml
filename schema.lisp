@@ -61,7 +61,7 @@ installed by the schema."
                                      (if (all-matches
                                           "^(n|N|no|No|NO|false|False|FALSE|off|Off|OFF)$"
                                           "false")
-                                         nil
+                                         :false
                                          (error "Expected a boolean but got ~a." content)))))
      (install-scalar-converter "tag:yaml.org,2002:int"
                                (lambda (content)
