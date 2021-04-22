@@ -19,4 +19,6 @@
            #:install-scalar-converter #:install-sequence-converter #:install-mapping-converter
            #:install-sequence-list-converter #:install-mapping-hashtable-converter
            #:convert-node #:convert-scalar #:convert-sequence #:convert-mapping
-           #:convert-sequence-to-list #:convert-mapping-to-hashtable))
+           #:convert-sequence-to-list #:convert-mapping-to-hashtable
+           ;; for serialization
+           #:stringify #:dump-file))
