@@ -54,11 +54,15 @@ installed by the schema."
                                                        (declare (ignore content))))
   (install-scalar-converter "tag:yaml.org,2002:bool"
                                (lambda (content)
-                                 (if (equal content "true")
+                                 (if (all-matches
+                                      "^(y|Y|yes|Yes|YES|true|True|TRUE|on|On|ON)$"
+                                      content)
                                      t
-                                     (if (equal content "false")
+                                     (if (all-matches
+                                          "^(n|N|no|No|NO|false|False|FALSE|off|Off|OFF)$"
+                                          "false")
                                          nil
-                                         (error "Expected 'true' or 'false' but got ~a." content)))))
+                                         (error "Expected a boolean but got ~a." content)))))
      (install-scalar-converter "tag:yaml.org,2002:int"
                                (lambda (content)
                                  (parse-integer content)))
@@ -91,7 +95,8 @@ installed by the schema."
   (cond ((or (equal content :empty)
              (all-matches "^(null|Null|NULL|~)$" content))
          (convert-scalar content "tag:yaml.org,2002:null"))
-        ((all-matches "^(true|True|TRUE|false|False|FALSE)$" content)
+        ((all-matches "^(y|Y|yes|Yes|YES|n|N|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF)$"
+                      content)
          (convert-scalar (string-downcase content) "tag:yaml.org,2002:bool"))
         ((all-matches "^[-+]?(0|[1-9][0-9]*)$" content)
          (convert-scalar content "tag:yaml.org,2002:int"))
